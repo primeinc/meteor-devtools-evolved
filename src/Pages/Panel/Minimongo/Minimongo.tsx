@@ -8,6 +8,7 @@ import styled from 'styled-components'
 import { MinimongoStatus } from '@/Pages/Panel/Minimongo/MinimongoStatus'
 import { Button } from '@/Components/Button'
 import prettyBytes from 'pretty-bytes'
+import { ExportDialog } from '@/Pages/Panel/Minimongo/components/ExportDialog'
 
 interface Props {
   isVisible: boolean
@@ -115,6 +116,13 @@ export const Minimongo: FunctionComponent<Props> = observer(({ isVisible }) => {
       <MinimongoStatus />
 
       <MinimongoNavigator />
+
+      {minimongoStore.isExportDialogOpen && (
+        <ExportDialog
+          isOpen
+          onClose={() => minimongoStore.toggleExportDialog(false)}
+        />
+      )}
     </Hideable>
   )
 })

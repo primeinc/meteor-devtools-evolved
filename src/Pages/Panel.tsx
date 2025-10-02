@@ -20,7 +20,19 @@ import { Performance } from '@/Pages/Panel/Performance/Performance'
 import { useAnalytics } from '@/Utils/Hooks/useAnalytics'
 import { HelpDrawer } from './Panel/HelpDrawer'
 
-Bridge.init()
+// Initialize Bridge with error handling
+try {
+  Bridge.init()
+} catch (error) {
+  console.error('Bridge initialization failed:', error)
+  // Show error in UI
+  document.body.innerHTML = `
+    <div style="padding:20px;background:#ff4444;color:white;font-family:monospace">
+      <h2>Bridge Init Failed</h2>
+      <pre>${error}</pre>
+    </div>
+  `
+}
 
 const Layout = styled.div`
   display: flex;

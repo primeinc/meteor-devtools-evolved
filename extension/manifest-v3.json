@@ -28,6 +28,9 @@
       "all_frames": true
     }
   ],
+  "permissions": [
+    "downloads"
+  ],
   "host_permissions": [
     "https://api.github.com/*",
     "https://www.google-analytics.com/*"

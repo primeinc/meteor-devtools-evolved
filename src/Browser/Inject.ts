@@ -1,3 +1,6 @@
+// Immediate logging to verify inject script loads
+console.log('[Meteor DevTools] Inject.ts loaded at', location.href, 'Meteor exists:', typeof window.Meteor)
+
 import { DDPInjector } from '@/Injectors/DDPInjector'
 import {
   MinimongoInjector,
@@ -127,7 +130,7 @@ export function injectAll() {
         : 'Initializing on the main page...',
     )
 
-    let attempts = 100
+    let attempts = 500  // Increased from 100 to 500 (5 seconds total)
     let interval = null
 
     function inject() {
@@ -143,19 +146,31 @@ export function injectAll() {
         window.__meteor_devtools_evolved_receiveMessage =
           Registry.run.bind(Registry)
 
-        warning(`Initialized. Attempts: ${100 - attempts}.`)
+        warning(`Initialized. Attempts: ${500 - attempts}.`)
+        clearInterval(interval)  // Stop immediately after success
+        return
       }
 
       if (attempts === 0) {
         clearInterval(interval)
 
-        if (!window.Meteor) {
-          warning(
-            isFrame
-              ? `Unable to find Meteor on iframe "${location.href}"`
-              : 'Unable to find Meteor on the main page.',
-          )
-        }
+        // Try again after 2 seconds in case of slow-loading apps
+        setTimeout(() => {
+          if (typeof Meteor === 'object' && !window.__meteor_devtools_evolved) {
+            window.__meteor_devtools_evolved = true
+            DDPInjector()
+            MinimongoInjector()
+            MeteorAdapter()
+            window.__meteor_devtools_evolved_receiveMessage = Registry.run.bind(Registry)
+            warning(`Initialized (delayed retry).`)
+          } else if (!window.Meteor) {
+            warning(
+              isFrame
+                ? `Unable to find Meteor on iframe "${location.href}"`
+                : 'Unable to find Meteor on the main page.',
+            )
+          }
+        }, 2000)
       }
     }
 

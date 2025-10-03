@@ -171,7 +171,8 @@ const handleConsole = (
 }
 
 /**
- * Handle download requests by forwarding to offscreen document
+ * Handle download requests by forwarding to offscreen document (Chrome MV3)
+ * or handling directly (Firefox MV2)
  */
 async function handleDownloadRequest(data: {
   content: string
@@ -179,15 +180,32 @@ async function handleDownloadRequest(data: {
   mimeType?: string
 }): Promise<void> {
   try {
-    // Ensure offscreen document is created
-    await setupOffscreenDocument()
+    // Check if we're in Chrome MV3 environment with offscreen API
+    // @ts-ignore
+    if (typeof chrome !== 'undefined' && chrome.offscreen) {
+      // Chrome MV3: Use offscreen document
+      await setupOffscreenDocument()
+      // @ts-ignore - chrome.runtime is available in extension context
+      return chrome.runtime.sendMessage({
+        type: 'download',
+        data,
+      })
+    } else {
+      // Firefox MV2 or other: Handle download directly
+      const { content, filename, mimeType = 'application/json' } = data
+      const blob = new Blob([content], { type: mimeType })
+      const url = URL.createObjectURL(blob)
 
-    // Send download message to offscreen document
-    // @ts-ignore - chrome.runtime is available in extension context
-    return chrome.runtime.sendMessage({
-      type: 'download',
-      data,
-    })
+      // Use browser.downloads API for Firefox
+      await browser.downloads.download({
+        url: url,
+        filename: filename,
+        saveAs: false,
+      })
+
+      // Clean up the blob URL after a short delay
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+    }
   } catch (error) {
     console.error('Error handling download request:', error)
     throw error

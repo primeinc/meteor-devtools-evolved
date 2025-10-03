@@ -13,6 +13,7 @@ import prettyBytes from 'pretty-bytes'
 import { Field } from '@/Components/Field'
 import { StringUtils } from '@/Utils/StringUtils'
 import { AppToaster } from '@/AppToaster'
+import { exportDDPLogs } from '@/Utils/DownloadUtils'
 
 export const DDPStatus: FunctionComponent = observer(() => {
   const store = usePanelStore()
@@ -25,6 +26,26 @@ export const DDPStatus: FunctionComponent = observer(() => {
   )
   const collectionLength = ddpStore.collection.length
   const { inboundBytes, outboundBytes, isLoading, pagination } = ddpStore
+
+  const handleExport = useCallback(async () => {
+    try {
+      await exportDDPLogs(ddpStore.collection)
+      AppToaster.show({
+        icon: 'tick',
+        message: 'DDP logs exported successfully',
+        intent: 'success',
+        timeout: 2000,
+      })
+    } catch (error) {
+      console.error('Failed to export DDP logs:', error)
+      AppToaster.show({
+        icon: 'error',
+        message: 'Failed to export DDP logs',
+        intent: 'danger',
+        timeout: 2000,
+      })
+    }
+  }, [ddpStore.collection])
 
   return (
     <StatusBar>
@@ -92,6 +113,16 @@ export const DDPStatus: FunctionComponent = observer(() => {
 
         {!!outboundBytes && (
           <Field icon='cloud-upload'>{prettyBytes(outboundBytes)}</Field>
+        )}
+
+        {isNumber(collectionLength) && collectionLength > 0 && (
+          <Tooltip content='Export DDP logs as JSON' position='top'>
+            <Button
+              onClick={handleExport}
+              icon='export'
+              disabled={collectionLength === 0}
+            />
+          </Tooltip>
         )}
 
         {isNumber(collectionLength) && (

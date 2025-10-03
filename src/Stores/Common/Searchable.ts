@@ -2,6 +2,7 @@ import { DEFAULT_OFFSET } from '@/Constants'
 import { calculatePagination } from '@/Utils/Pagination'
 import debounce from 'lodash.debounce'
 import { action, computed, observable, runInAction } from 'mobx'
+import { debug } from '@/Utils/Debug'
 
 type BufferCallback<T> = ((buffer: T[]) => void) | null
 type FilterFunction<T> = ((collection: T[], search: string) => T[]) | null
@@ -58,8 +59,7 @@ export abstract class Searchable<T> {
       this.bufferCallback(this.buffer)
     }
 
-    // eslint-disable-next-line no-console
-    console.log('submitted')
+    debug.log('submitted')
 
     this.collection.unshift(...this.buffer.reverse())
 
@@ -82,8 +82,7 @@ export abstract class Searchable<T> {
     this.loadingTimeout = setTimeout(
       action(() => {
         this.isLoading = isLoading
-        // eslint-disable-next-line no-console
-        console.log('loading:false')
+        debug.log('loading:false')
       }),
       250,
     )

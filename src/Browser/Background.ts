@@ -1,6 +1,12 @@
 import browser from 'webextension-polyfill'
+import { debug } from '@/Utils/Debug'
 
 type Connection = Map<number, any>
+
+// Security token for validating messages
+const SECURITY_TOKEN =
+  Math.random().toString(36).substring(2, 15) +
+  Math.random().toString(36).substring(2, 15)
 
 declare global {
   interface Window {
@@ -16,13 +22,37 @@ self.connections = connections
 
 const panelListener = () => {
   browser.runtime.onConnect.addListener(port => {
-    console.debug('runtime.onConnect', port)
+    debug.debug('runtime.onConnect', port)
+
+    // Validate port sender
+    if (!port.sender || !port.sender.tab) {
+      debug.warn('Invalid port sender - no tab information')
+      port.disconnect()
+      return
+    }
 
     port.onMessage.addListener(request => {
-      // eslint-disable-next-line no-console
-      console.debug('port.onMessage', request)
+      debug.debug('port.onMessage', request)
+
+      // Validate request has required fields
+      if (!request || typeof request !== 'object') {
+        debug.warn('Invalid request format')
+        return
+      }
 
       if (request.name === 'init') {
+        // Validate tab ID
+        if (typeof request.tabId !== 'number') {
+          debug.warn('Invalid tabId in init request')
+          return
+        }
+
+        // Validate token if provided (for enhanced security)
+        if (request.token && request.token !== SECURITY_TOKEN) {
+          debug.warn('Invalid security token')
+          return
+        }
+
         connections.set(request.tabId, port)
 
         // Pick things from cache and send it to the panel.
@@ -42,7 +72,7 @@ const panelListener = () => {
 
 const tabRemovalListener = () => {
   browser.tabs.onRemoved.addListener(tabId => {
-    console.debug('tabs.onRemoved', tabId)
+    debug.debug('tabs.onRemoved', tabId)
 
     if (connections.has(tabId)) {
       connections.delete(tabId)
@@ -55,7 +85,7 @@ const tabRemovalListener = () => {
 const action = browser.browserAction || browser.action
 
 action.onClicked.addListener(e => {
-  console.debug('action.onClicked', e)
+  debug.debug('action.onClicked', e)
 
   browser.tabs
     .create({
@@ -73,8 +103,7 @@ const handleConsole = (
     // eslint-disable-next-line no-console
     console[type](`[${tabId}]`, message)
   } else {
-    // eslint-disable-next-line no-console
-    console.warn('Wrong console type.')
+    debug.warn('Wrong console type.')
   }
 }
 
@@ -86,10 +115,15 @@ const contentListener = () => {
 
       if (!tabId) return
 
+      // Validate sender origin
+      if (!sender.tab || !sender.url) {
+        debug.warn('Invalid sender - missing tab or url')
+        return
+      }
+
       // The message event has to from the panel to the content and then through here.
       if (request?.eventType === 'cache:clear') {
-        // eslint-disable-next-line no-console
-        console.debug('clear cache')
+        debug.debug('clear cache')
         Cache.delete(tabId)
         return
       }

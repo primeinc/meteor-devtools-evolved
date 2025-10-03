@@ -1,11 +1,11 @@
 import { DEVELOPMENT } from '@/Constants'
 import browser from 'webextension-polyfill'
 import { isNil } from './Objects'
+import { debug } from './Debug'
 
 export const inDevelopmentOnly = (callback: () => any) => {
   if (DEVELOPMENT) {
-    // eslint-disable-next-line no-console
-    console.trace('DEVELOPMENT ONLY')
+    debug.trace('DEVELOPMENT ONLY')
     callback()
   }
 }

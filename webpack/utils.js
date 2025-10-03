@@ -4,7 +4,10 @@ const { toPairs } = require('lodash')
 const getTypeScriptAliases = () => {
   const { paths } = require('../tsconfig').compilerOptions
 
-  console.log(toPairs(paths))
+  // Only log in development/debug mode
+  if (process.env.DEBUG) {
+    console.log(toPairs(paths))
+  }
 
   return toPairs(paths).reduce(
     (acc, [key, item]) => ({

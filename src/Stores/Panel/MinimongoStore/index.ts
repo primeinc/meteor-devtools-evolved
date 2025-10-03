@@ -5,6 +5,7 @@ import { JSONUtils } from '@/Utils/JSONUtils'
 import { StringUtils } from '@/Utils/StringUtils'
 import prettyBytes from 'pretty-bytes'
 import { mapValues } from '@/Utils/Objects'
+import { debug } from '@/Utils/Debug'
 
 export class MinimongoStore {
   activeCollectionDocuments = new CollectionStore()
@@ -122,7 +123,7 @@ export class MinimongoStore {
   ): IDocumentWrapper {
     const _string = JSONUtils.stringify(document)
 
-    console.log({ collectionName })
+    debug.log({ collectionName })
 
     return {
       collectionName,

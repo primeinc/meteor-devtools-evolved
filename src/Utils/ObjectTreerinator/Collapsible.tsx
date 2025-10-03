@@ -1,5 +1,6 @@
 import React, { FunctionComponent, useState } from 'react'
 import { isArray, isEmpty, isObject } from 'lodash'
+import { debug } from '@/Utils/Debug'
 
 interface Props {
   object: any
@@ -61,9 +62,8 @@ export const Collapsible: FunctionComponent<Props> = ({
     )
   }
 
-  console.error('Not a valid collapsible value.')
-  // eslint-disable-next-line no-console
-  console.trace(object)
+  debug.warn('Not a valid collapsible value.')
+  debug.trace(object)
 
   return null
 }

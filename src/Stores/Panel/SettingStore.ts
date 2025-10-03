@@ -9,6 +9,7 @@ import {
 import { PanelDatabase } from '@/Database/PanelDatabase'
 import { FilterCriteria } from '@/Pages/Panel/DDP/FilterConstants'
 import { compact, flatten, omit } from '@/Utils/Objects'
+import { debug } from '@/Utils/Debug'
 
 export class SettingStore implements ISettings {
   hydrated = false
@@ -46,8 +47,7 @@ export class SettingStore implements ISettings {
         if (this.hydrated) {
           PanelDatabase.saveSettings(omit(data, ['hydrated']) as ISettings)
             .then(() => {
-              // eslint-disable-next-line no-console
-              console.log('Settings updated.')
+              debug.log('Settings updated.')
             })
             // eslint-disable-next-line no-console
             .catch(console.error)
@@ -70,8 +70,7 @@ export class SettingStore implements ISettings {
       .then(data => {
         if (data) {
           if (!data.stargazers_count || !data.open_issues_count) {
-            // eslint-disable-next-line no-console
-            console.log('Not updating repository data', data)
+            debug.log('Not updating repository data', data)
             return
           }
 

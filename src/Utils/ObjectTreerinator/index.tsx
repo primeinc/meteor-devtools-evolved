@@ -17,6 +17,7 @@ import { BooleanRenderer } from '@/Utils/ObjectTreerinator/BooleanRenderer'
 import { NumberRenderer } from '@/Utils/ObjectTreerinator/NumberRenderer'
 import { NullRenderer } from '@/Utils/ObjectTreerinator/NullRenderer'
 import styled from 'styled-components'
+import { debug } from '@/Utils/Debug'
 
 const TreeWrapper = styled.div`
   font-family: monospace;
@@ -78,10 +79,8 @@ export const ObjectTreeNode: FunctionComponent<{
   level: number
 }> = ({ object, level }) => {
   if (!(typeof object === 'object' && object?.constructor === Object)) {
-    // eslint-disable-next-line no-console
-    console.error('Invalid Object')
-    // eslint-disable-next-line no-console
-    console.debug(object)
+    debug.warn('Invalid Object')
+    debug.debug(object)
   }
 
   const children = toPairs(object).map(([key, child]) => {

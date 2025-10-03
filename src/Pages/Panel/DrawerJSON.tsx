@@ -1,8 +1,7 @@
 import { ObjectTreerinator } from '@/Utils/ObjectTreerinator'
-import { Button, Classes, Drawer } from '@blueprintjs/core'
+import { Classes, Drawer } from '@blueprintjs/core'
 import React, { FunctionComponent } from 'react'
-import { StringUtils } from '@/Utils/StringUtils'
-import { Popover2 } from '@blueprintjs/popover2'
+import { CopySplitButton } from '@/Pages/Panel/Minimongo/components/CopySplitButton'
 
 interface Props {
   title: string | null
@@ -29,20 +28,12 @@ export const DrawerJSON: FunctionComponent<Props> = ({
         </div>
       </div>
       <div className={Classes.DRAWER_FOOTER}>
-        <Popover2
-          position='top'
-          content={<div style={{ padding: '0.5rem' }}>Copied</div>}
-        >
-          <Button
-            onClick={() =>
-              StringUtils.toClipboard(JSON.stringify(viewableObject, null, 2))
-            }
-            icon='clipboard'
-            minimal
-          >
-            Copy
-          </Button>
-        </Popover2>
+        {!!viewableObject && (
+          <CopySplitButton
+            collectionName={title || 'collection'}
+            doc={viewableObject as Record<string, any>}
+          />
+        )}
       </div>
     </Drawer>
   )

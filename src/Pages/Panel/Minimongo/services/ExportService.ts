@@ -32,8 +32,14 @@ async function tryAnchorDownload(blob: Blob, filename: string) {
 }
 
 async function downloadViaRelay(blob: Blob, filename: string, mime: string, signal: AbortSignal, onProgress:(p:number)=>void) {
+  // Compute checksum for integrity verification
+  const bytes = new Uint8Array(await blob.arrayBuffer())
+  const { sha256Hex } = await import('@/Utils/Hash')
+  const expectedHash = await sha256Hex(bytes)
+  console.log('[Export] Blob hash:', expectedHash, 'size:', bytes.byteLength, 'first 4 bytes:', Array.from(bytes.slice(0, 4)))
+
   const relay = new RelayClient()
-  await relay.sendBlob(blob, filename, mime, signal, onProgress)
+  await relay.sendBlob(blob, filename, mime, expectedHash, signal, onProgress)
 }
 
 export async function saveBlob(blob: Blob, filename: string, signal: AbortSignal, onProgress:(p:number)=>void) {

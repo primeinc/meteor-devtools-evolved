@@ -27,6 +27,7 @@ module.exports = (browser = 'chrome', override) => {
         background: path.resolve(src, 'Browser', 'Background.ts'),
         content: path.resolve(src, 'Browser', 'Content.ts'),
         devtools: path.resolve(src, 'Browser', 'DevTools.ts'),
+        offscreen: path.resolve(src, 'Browser', 'Offscreen.ts'),
       },
 
       output: {

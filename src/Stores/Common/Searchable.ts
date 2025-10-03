@@ -6,12 +6,19 @@ import { action, computed, observable, runInAction } from 'mobx'
 type BufferCallback<T> = ((buffer: T[]) => void) | null
 type FilterFunction<T> = ((collection: T[], search: string) => T[]) | null
 
+/**
+ * Maximum duration (ms) that the loading state can remain active.
+ * Capped to ensure deterministic behavior in tests.
+ */
+const MAX_LOADING_DURATION_MS = 1000
+
 export abstract class Searchable<T> {
   bufferCallback: BufferCallback<T> = null
   filterFunction: FilterFunction<T> = null
 
   lastPush: number = 0
   loadingTimeout: ReturnType<typeof setTimeout> | null = null
+  loadingStartTime: number = 0
 
   buffer: T[] = []
 
@@ -30,6 +37,7 @@ export abstract class Searchable<T> {
     this.lastPush = Date.now()
 
     if (!this.isLoading) {
+      this.loadingStartTime = Date.now()
       runInAction(() => {
         this.isLoading = true
       })
@@ -79,13 +87,18 @@ export abstract class Searchable<T> {
       clearTimeout(this.loadingTimeout)
     }
 
+    // Cap loading state duration to ensure deterministic test behavior
+    const elapsedTime = Date.now() - this.loadingStartTime
+    const cappedDelay = Math.min(250, MAX_LOADING_DURATION_MS - elapsedTime)
+    const delay = isLoading ? 250 : Math.max(0, cappedDelay)
+
     this.loadingTimeout = setTimeout(
       action(() => {
         this.isLoading = isLoading
         // eslint-disable-next-line no-console
         console.log('loading:false')
       }),
-      250,
+      delay,
     )
   }
 

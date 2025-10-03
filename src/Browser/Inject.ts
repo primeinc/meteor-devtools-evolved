@@ -117,6 +117,13 @@ export const Registry: IRegistry = {
   },
 }
 
+/**
+ * Maximum number of attempts to detect and inject into Meteor runtime.
+ * This ensures a deterministic timeout period (MAX_INJECTION_ATTEMPTS * INJECTION_INTERVAL_MS).
+ */
+const MAX_INJECTION_ATTEMPTS = 100
+const INJECTION_INTERVAL_MS = 10
+
 export function injectAll() {
   if (!window.__meteor_devtools_evolved) {
     if (isFrame) return false
@@ -127,7 +134,7 @@ export function injectAll() {
         : 'Initializing on the main page...',
     )
 
-    let attempts = 100
+    let attempts = MAX_INJECTION_ATTEMPTS
     let interval = null
 
     function inject() {
@@ -143,7 +150,7 @@ export function injectAll() {
         window.__meteor_devtools_evolved_receiveMessage =
           Registry.run.bind(Registry)
 
-        warning(`Initialized. Attempts: ${100 - attempts}.`)
+        warning(`Initialized. Attempts: ${MAX_INJECTION_ATTEMPTS - attempts}.`)
       }
 
       if (attempts === 0) {
@@ -161,7 +168,7 @@ export function injectAll() {
 
     inject()
 
-    interval = window.setInterval(inject, 10)
+    interval = window.setInterval(inject, INJECTION_INTERVAL_MS)
   }
 }
 

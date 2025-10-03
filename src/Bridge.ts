@@ -30,6 +30,10 @@ export const Bridge = new (class {
     this.handlers[eventType] = handler
   }
 
+  unregister(eventType: EventType) {
+    delete this.handlers[eventType]
+  }
+
   handle(message: Message<any>) {
     if (message.eventType in this.handlers) {
       const handler = this.handlers[message.eventType]

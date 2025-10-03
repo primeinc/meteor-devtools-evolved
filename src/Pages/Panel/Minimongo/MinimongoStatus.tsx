@@ -42,6 +42,14 @@ export const MinimongoStatus: FunctionComponent = observer(() => {
         <Field icon='eye-open'>
           {minimongoStore.activeCollectionDocuments.pagination.length}
         </Field>
+
+        <Button
+          icon='export'
+          disabled={!minimongoStore.activeCollection || minimongoStore.isExportBusy}
+          onClick={() => minimongoStore.toggleExportDialog(true)}
+        >
+          Export
+        </Button>
       </div>
     </StatusBar>
   )

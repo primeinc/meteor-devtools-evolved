@@ -16,6 +16,10 @@
   "background": {
     "service_worker": "/dist/background.js"
   },
+  "permissions": [
+    "offscreen",
+    "downloads"
+  ],
   "content_scripts": [
     {
       "matches": [

@@ -1,5 +1,15 @@
 import { ExportService, inferSchema } from '../ExportService'
 
+// Mock Logger
+jest.mock('@/Utils/Logger', () => ({
+  createLogger: jest.fn().mockReturnValue({
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  }),
+}))
+
 // Force anchor+blob path under tests (relay needs chrome.runtime)
 jest.mock('@/Config/flags', () => ({
   flags: { export: { useBackgroundRelay: false } },
@@ -21,11 +31,16 @@ global.document = {
   body: {
     appendChild: jest.fn(),
   },
+  referrer: '',
 } as any
 
 global.URL = {
   createObjectURL: jest.fn().mockReturnValue('blob:mock-url'),
   revokeObjectURL: jest.fn(),
+} as any
+
+global.location = {
+  href: 'http://localhost:3000/test',
 } as any
 
 describe('ExportService', () => {

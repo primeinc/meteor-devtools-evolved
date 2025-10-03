@@ -97,10 +97,14 @@ export const ExportService = {
         const idx = i + j
         const json = JSON.stringify(batch[j])
         writer.item(json, idx === docs.length - 1)
+
+        // Report progress every 10 docs for smoother updates on small collections
+        if (idx % 10 === 0 || idx === docs.length - 1) {
+          const progress = Math.min(0.95, (idx + 1) / docs.length)
+          onProgress(progress, `Processing ${idx + 1} / ${docs.length}`)
+        }
       }
 
-      const progress = Math.min(0.95, (i + batch.length) / docs.length)
-      onProgress(progress, `Processing ${i + batch.length} / ${docs.length}`)
       await sleep0()
     }
 

@@ -77,7 +77,15 @@ module.exports = (browser = 'chrome', override) => {
             use: 'babel-loader',
             include: src,
           },
-          { test: /\.tsx?$/, use: 'ts-loader' },
+          {
+            test: /\.tsx?$/,
+            use: {
+              loader: 'ts-loader',
+              options: {
+                transpileOnly: true,
+              },
+            },
+          },
           {
             test: /\.css$/,
             use: ['style-loader', 'css-loader', 'postcss-loader'],

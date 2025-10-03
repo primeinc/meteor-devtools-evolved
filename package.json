@@ -21,7 +21,9 @@
     "open:firefox": "yarn wait:firefox && web-ext run --start-url \"http://localhost:2100\"  --source-dir ./extension/firefox/ --browser-console",
     "open:chrome": "yarn wait:chrome && web-ext run -t chromium --start-url \"http://localhost:2100\" --source-dir ./extension/chrome/ --browser-console",
     "clean": "rimraf extension/firefox extension/chrome",
-    "lint": "eslint ./src --ext .js,.jsx,.ts,.tsx --cache ."
+    "lint": "eslint ./src --ext .js,.jsx,.ts,.tsx --cache .",
+    "test": "jest",
+    "test:watch": "jest --watch"
   },
   "author": "Leonardo Venturini",
   "license": "MIT",
@@ -91,10 +93,13 @@
     "yarn": "1.22.18"
   },
   "devDependencies": {
+    "@types/jest": "^29.5.14",
     "@types/webextension-polyfill": "^0.9.0",
     "concurrently": "^7.2.2",
     "copy-webpack-plugin": "^11.0.0",
+    "jest": "^29.7.0",
     "npm-run-all": "^4.1.5",
+    "ts-jest": "^29.4.4",
     "wait-on": "^6.0.1",
     "web-ext": "^7.1.0",
     "webextension-polyfill": "^0.9.0"

@@ -1,15 +1,5 @@
 import { ExportService, inferSchema } from '../ExportService'
 
-// Mock Logger
-jest.mock('@/Utils/Logger', () => ({
-  createLogger: jest.fn().mockReturnValue({
-    debug: jest.fn(),
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-  }),
-}))
-
 // Force anchor+blob path under tests (relay needs chrome.runtime)
 jest.mock('@/Config/flags', () => ({
   flags: { export: { useBackgroundRelay: false } },
@@ -44,6 +34,18 @@ global.location = {
 } as any
 
 describe('ExportService', () => {
+  // Silence console output from real Logger during tests
+  beforeAll(() => {
+    jest.spyOn(console, 'debug').mockImplementation()
+    jest.spyOn(console, 'info').mockImplementation()
+    jest.spyOn(console, 'warn').mockImplementation()
+    jest.spyOn(console, 'error').mockImplementation()
+  })
+
+  afterAll(() => {
+    jest.restoreAllMocks()
+  })
+
   beforeEach(() => {
     jest.clearAllMocks()
   })

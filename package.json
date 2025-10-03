@@ -22,7 +22,7 @@
     "open:chrome": "yarn wait:chrome && web-ext run -t chromium --start-url \"http://localhost:2100\" --source-dir ./extension/chrome/ --browser-console",
     "clean": "rimraf extension/firefox extension/chrome",
     "lint": "eslint ./src --ext .js,.jsx,.ts,.tsx --cache .",
-    "test": "jest",
+    "test": "yarn build:chrome && jest",
     "test:watch": "jest --watch"
   },
   "author": "Leonardo Venturini",

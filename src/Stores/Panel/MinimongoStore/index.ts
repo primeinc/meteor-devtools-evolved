@@ -98,7 +98,10 @@ export class MinimongoStore {
   }
 
   @action
-  setCollections(collections: RawCollections) {
+  setCollections(data: RawCollections | any) {
+    // Filter out metadata fields (requestId, etc.) that may be echoed from requests
+    const { requestId, ...collections } = data
+
     this.collections = mapValues(collections, (collection, collectionName) => {
       return collection.map(document =>
         MinimongoStore.wrapDocument(document, collectionName),
@@ -161,12 +164,12 @@ export class MinimongoStore {
       const waitForFresh = new Promise<void>((resolve, reject) => {
         const progressTimer = setInterval(() => {
           elapsed += PROGRESS_INTERVAL
-          const progress = Math.min(0.05, (elapsed / REFRESH_TIMEOUT) * 0.05)
+          const progress = Math.min(1.0, elapsed / REFRESH_TIMEOUT)
           const remaining = Math.ceil((REFRESH_TIMEOUT - elapsed) / 1000)
           runInAction(() => {
             this.exportStatus = {
               progress,
-              message: `Requesting fresh data… (${remaining}s)`
+              message: `→ BridgeAdapter.post('minimongo-get-collections', {requestId: '${reqId}'}) · Waiting for reply… (${remaining}s)`
             }
           })
         }, PROGRESS_INTERVAL)
@@ -174,7 +177,7 @@ export class MinimongoStore {
         const timeout = setTimeout(() => {
           cleanup()
           runInAction(() => {
-            this.exportStatus = { progress: 0.05, message: 'Using cached data (refresh timed out)' }
+            this.exportStatus = { progress: 0, message: `Timeout: No reply after 5s · Using cached data` }
           })
           resolve()
         }, REFRESH_TIMEOUT)
@@ -183,7 +186,7 @@ export class MinimongoStore {
           if (!payload || payload.requestId !== reqId) return
           cleanup()
           runInAction(() => {
-            this.exportStatus = { progress: 0.05, message: 'Fresh data received' }
+            this.exportStatus = { progress: 0, message: `Received: minimongo-get-collections reply · Using fresh data` }
           })
           resolve()
         }
@@ -199,7 +202,7 @@ export class MinimongoStore {
 
         // Initialize progress
         runInAction(() => {
-          this.exportStatus = { progress: 0, message: 'Requesting fresh data… (5s)' }
+          this.exportStatus = { progress: 0, message: `Sent: minimongo-get-collections (reqId: ${reqId}) · Waiting… (5s)` }
         })
       })
 

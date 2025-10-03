@@ -62,7 +62,7 @@ const getDocs = (collection: any) => {
   }
 }
 
-const getCollections = () => {
+const getCollections = (requestPayload?: any) => {
   const collections = Meteor.connection._mongo_livedata_collections
 
   if (!collections) {
@@ -72,7 +72,7 @@ const getCollections = () => {
     return
   }
 
-  const data = Object.values(collections).reduce(
+  const collectionsData = Object.values(collections).reduce(
     (acc: object, collection: any) =>
       Object.assign(acc, {
         [collection.name]: Array.from(getDocs(collection)).map(cleanup),
@@ -80,7 +80,12 @@ const getCollections = () => {
     {},
   )
 
-  sendMessage('minimongo-get-collections', data as any)
+  // Echo back any request metadata (e.g., requestId) for correlation
+  const response = requestPayload
+    ? { ...requestPayload, ...collectionsData }
+    : collectionsData
+
+  sendMessage('minimongo-get-collections', response as any)
 }
 
 export const updateCollections = throttle(getCollections, 1000, {
@@ -89,7 +94,7 @@ export const updateCollections = throttle(getCollections, 1000, {
 })
 
 export const MinimongoInjector = () => {
-  Registry.register('minimongo-get-collections', () => {
-    getCollections()
+  Registry.register('minimongo-get-collections', (message: Message<any>) => {
+    getCollections(message.data)
   })
 }

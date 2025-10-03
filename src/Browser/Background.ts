@@ -1,4 +1,8 @@
 import browser from 'webextension-polyfill'
+import { createLogger } from '@/Utils/Logger'
+
+const logger = createLogger('Background')
+const exportLogger = createLogger('Export')
 
 type Connection = Map<number, any>
 
@@ -21,13 +25,13 @@ const downloadIdToFilename = new Map<number, string>()
 
 const panelListener = () => {
   browser.runtime.onConnect.addListener(port => {
-    console.debug('runtime.onConnect', port)
+    logger.debug('runtime.onConnect', port)
 
     // Handle export relay connections
     if (port.name === 'export-relay') {
       // Cleanup all in-flight transfers when port disconnects
       port.onDisconnect.addListener(() => {
-        console.log('[Export] Port disconnected, cleaning up all transfers')
+        exportLogger.info('Port disconnected, cleaning up all transfers')
         transfers.clear()
       })
 
@@ -36,7 +40,7 @@ const panelListener = () => {
         const ack = (extra?: any) => port.postMessage({ type: 'EXPORT_ACK', payload: { id: payload.id, idx: payload.idx, ...extra } })
 
         if (type === 'EXPORT_DOWNLOAD_BEGIN') {
-          console.log('[Export] BEGIN received:', payload.id, payload.filename, payload.expectedHash)
+          exportLogger.info('BEGIN received:', payload.id, payload.filename, payload.expectedHash)
           transfers.set(payload.id, {
             filename: payload.filename,
             mime: payload.mime,
@@ -49,23 +53,23 @@ const panelListener = () => {
         if (type === 'EXPORT_DOWNLOAD_CHUNK') {
           const t = transfers.get(payload.id)
           if (!t) {
-            console.error('[Export] No transfer found for chunk:', payload.id)
+            exportLogger.error('No transfer found for chunk:', payload.id)
             return
           }
           const chunkBytes = new Uint8Array(payload.bytes)
-          console.log(`[Export] Chunk ${payload.idx} received:`, chunkBytes.byteLength, 'bytes, first 4 bytes:', Array.from(chunkBytes.slice(0, 4)))
+          exportLogger.debug(`Chunk ${payload.idx} received:`, chunkBytes.byteLength, 'bytes, first 4 bytes:', Array.from(chunkBytes.slice(0, 4)))
           t.chunks.push(chunkBytes)
           ack({ type: 'CHUNK', idx: payload.idx }); return
         }
 
         if (type === 'EXPORT_DOWNLOAD_END') {
-          console.log('[Export] EXPORT_DOWNLOAD_END received for ID:', payload.id)
+          exportLogger.debug('EXPORT_DOWNLOAD_END received for ID:', payload.id)
           const t = transfers.get(payload.id)
           if (!t) {
-            console.error('[Export] No transfer found for ID:', payload.id)
+            exportLogger.error('No transfer found for ID:', payload.id)
             return
           }
-          console.log('[Export] Transfer has', t.chunks.length, 'chunks')
+          exportLogger.debug('Transfer has', t.chunks.length, 'chunks')
 
           // Assemble Blob directly (no base64 string churn)
           const blob = new Blob(t.chunks, { type: t.mime || 'application/octet-stream' })
@@ -78,13 +82,13 @@ const panelListener = () => {
               const digest = await crypto.subtle.digest('SHA-256', buf)
               const arr = new Uint8Array(digest)
               const actualHash = Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('')
-              console.log('[Export] Hash verification:', { expected: t.expectedHash, actual: actualHash })
+              exportLogger.debug('Hash verification:', { expected: t.expectedHash, actual: actualHash })
 
               if (actualHash !== t.expectedHash) {
-                console.error('[Export] HASH_MISMATCH detected!')
+                exportLogger.error('HASH_MISMATCH detected!')
                 transfers.delete(payload.id)
                 port.postMessage({ type: 'EXPORT_FAILED', payload: { id: payload.id, reason: 'HASH_MISMATCH' } })
-                ack({ type: 'END' })
+                // DO NOT send ACK on error - let EXPORT_FAILED propagate
                 return false
               }
               return true
@@ -104,12 +108,12 @@ const panelListener = () => {
           function startDownload() {
             const done = (downloadId?: number) => {
               if (chrome.runtime.lastError) {
-                console.error('[Export] Download failed:', chrome.runtime.lastError)
+                exportLogger.error('Download failed:', chrome.runtime.lastError)
                 transfers.delete(payload.id)
                 port.postMessage({ type: 'EXPORT_DONE', payload: { id: payload.id, error: chrome.runtime.lastError.message } })
                 return
               }
-              console.log('[Export] Download started with ID:', downloadId)
+              exportLogger.info('Download started with ID:', downloadId)
               if (downloadId) downloadIdToFilename.set(downloadId, filename)
               transfers.delete(payload.id)
               port.postMessage({ type: 'EXPORT_DONE', payload: { id: payload.id, downloadId } })
@@ -150,8 +154,7 @@ const panelListener = () => {
 
     // Handle normal panel connections
     port.onMessage.addListener(request => {
-      // eslint-disable-next-line no-console
-      console.debug('port.onMessage', request)
+      logger.debug('port.onMessage', request)
 
       if (request.name === 'init') {
         connections.set(request.tabId, port)
@@ -173,7 +176,7 @@ const panelListener = () => {
 
 const tabRemovalListener = () => {
   browser.tabs.onRemoved.addListener(tabId => {
-    console.debug('tabs.onRemoved', tabId)
+    logger.debug('tabs.onRemoved', tabId)
 
     if (connections.has(tabId)) {
       connections.delete(tabId)
@@ -186,14 +189,13 @@ const tabRemovalListener = () => {
 const action = browser.browserAction || browser.action
 
 action.onClicked.addListener(e => {
-  console.debug('action.onClicked', e)
+  logger.debug('action.onClicked', e)
 
   browser.tabs
     .create({
       url: 'http://cloud.meteor.com/?utm_source=chrome_extension&utm_medium=extension&utm_campaign=meteor_devtools_evolved',
     })
-    // eslint-disable-next-line no-console
-    .catch(console.error)
+    .catch((err) => logger.error('Failed to create tab:', err))
 })
 
 const handleConsole = (
@@ -201,11 +203,9 @@ const handleConsole = (
   { data: { type, message } }: Message<{ type: ConsoleType; message: string }>,
 ) => {
   if (type in console) {
-    // eslint-disable-next-line no-console
-    console[type](`[${tabId}]`, message)
+    console[type](`[Tab ${tabId}]`, message)
   } else {
-    // eslint-disable-next-line no-console
-    console.warn('Wrong console type.')
+    logger.warn('Wrong console type:', type)
   }
 }
 
@@ -219,8 +219,7 @@ const contentListener = () => {
 
       // The message event has to from the panel to the content and then through here.
       if (request?.eventType === 'cache:clear') {
-        // eslint-disable-next-line no-console
-        console.debug('clear cache')
+        logger.debug('clear cache for tab:', tabId)
         Cache.delete(tabId)
         return
       }
@@ -258,7 +257,7 @@ const tabListener = () => {
         .create({
           url: request.data.url,
         })
-        .catch(console.error),
+        .catch((err) => logger.error('Failed to create tab:', err)),
     // Remove old download-blob handler - we use port-based relay now
   }
   /**
@@ -281,19 +280,19 @@ const tabListener = () => {
 
 // Override download filenames for data URLs
 chrome.downloads.onDeterminingFilename.addListener((downloadItem, suggest) => {
-  console.log('[Export] onDeterminingFilename called for download ID:', downloadItem.id)
+  exportLogger.debug('onDeterminingFilename called for download ID:', downloadItem.id)
 
   // Check if we have a tracked filename for this download
   const trackedFilename = downloadIdToFilename.get(downloadItem.id)
 
   if (trackedFilename) {
-    console.log('[Export] Found tracked filename:', trackedFilename)
+    exportLogger.debug('Found tracked filename:', trackedFilename)
     suggest({ filename: trackedFilename })
     // Clean up after use
     downloadIdToFilename.delete(downloadItem.id)
   } else if (downloadItem.url.startsWith('data:application/json;base64,')) {
     // Fallback for data URL exports without tracked filename
-    console.log('[Export] Data URL export without tracked filename, using default')
+    exportLogger.debug('Data URL export without tracked filename, using default')
     suggest({ filename: 'export.json' })
   } else {
     // Let other downloads proceed normally

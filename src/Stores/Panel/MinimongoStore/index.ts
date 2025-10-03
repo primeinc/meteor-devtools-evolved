@@ -7,6 +7,9 @@ import prettyBytes from 'pretty-bytes'
 import { mapValues } from '@/Utils/Objects'
 import { BridgeAdapter } from '@/Utils/BridgeAdapter'
 import { ExportService } from '@/Pages/Panel/Minimongo/services/ExportService'
+import { createLogger } from '@/Utils/Logger'
+
+const logger = createLogger('MinimongoStore')
 
 export class MinimongoStore {
   activeCollectionDocuments = new CollectionStore()
@@ -133,43 +136,78 @@ export class MinimongoStore {
   }
 
   /**
-   * Export active collection with deterministic data refresh
+   * Export active collection with optional data refresh
    */
   exportActiveCollection = flow(function* (
     this: MinimongoStore,
     exportType: 'data' | 'schema',
     signal: AbortSignal,
+    refreshData: boolean = true,
   ) {
     if (!this.activeCollection) return
 
     this.isExportBusy = true
-    this.exportStatus = { progress: 0, message: 'Requesting fresh data…' }
+    logger.info('Export starting with refreshData:', refreshData)
 
-    const reqId = `exp-${this.exportSeq++}`
+    if (refreshData) {
+      const reqId = `exp-${this.exportSeq++}`
+      logger.debug('Requesting fresh data with reqId:', reqId)
 
-    // Wait for fresh data with deterministic requestId
-    const waitForFresh = new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        cleanup()
-        resolve() // Allow stale-path; UI will show message below
-      }, 5000)
+      // Wait for fresh data with deterministic requestId and visual progress
+      const REFRESH_TIMEOUT = 5000
+      const PROGRESS_INTERVAL = 100
+      let elapsed = 0
 
-      const onReply = (payload: any) => {
-        if (!payload || payload.requestId !== reqId) return
-        cleanup()
-        resolve()
-      }
+      const waitForFresh = new Promise<void>((resolve, reject) => {
+        const progressTimer = setInterval(() => {
+          elapsed += PROGRESS_INTERVAL
+          const progress = Math.min(0.05, (elapsed / REFRESH_TIMEOUT) * 0.05)
+          const remaining = Math.ceil((REFRESH_TIMEOUT - elapsed) / 1000)
+          runInAction(() => {
+            this.exportStatus = {
+              progress,
+              message: `Requesting fresh data… (${remaining}s)`
+            }
+          })
+        }, PROGRESS_INTERVAL)
 
-      const cleanup = () => {
-        clearTimeout(timeout)
-        BridgeAdapter.off('minimongo-get-collections', onReply)
-      }
+        const timeout = setTimeout(() => {
+          cleanup()
+          runInAction(() => {
+            this.exportStatus = { progress: 0.05, message: 'Using cached data (refresh timed out)' }
+          })
+          resolve()
+        }, REFRESH_TIMEOUT)
 
-      BridgeAdapter.on('minimongo-get-collections', onReply)
-      BridgeAdapter.post('minimongo-get-collections', { requestId: reqId })
-    })
+        const onReply = (payload: any) => {
+          if (!payload || payload.requestId !== reqId) return
+          cleanup()
+          runInAction(() => {
+            this.exportStatus = { progress: 0.05, message: 'Fresh data received' }
+          })
+          resolve()
+        }
 
-    yield waitForFresh
+        const cleanup = () => {
+          clearTimeout(timeout)
+          clearInterval(progressTimer)
+          BridgeAdapter.off('minimongo-get-collections', onReply)
+        }
+
+        BridgeAdapter.on('minimongo-get-collections', onReply)
+        BridgeAdapter.post('minimongo-get-collections', { requestId: reqId })
+
+        // Initialize progress
+        runInAction(() => {
+          this.exportStatus = { progress: 0, message: 'Requesting fresh data… (5s)' }
+        })
+      })
+
+      yield waitForFresh
+    } else {
+      logger.info('Skipping refresh, using cached data')
+      this.exportStatus = { progress: 0, message: 'Preparing export…' }
+    }
 
     if (signal.aborted) {
       this.isExportBusy = false
@@ -238,8 +276,6 @@ export class MinimongoStore {
     collectionName: string,
   ): IDocumentWrapper {
     const _string = JSONUtils.stringify(document)
-
-    console.log({ collectionName })
 
     return {
       collectionName,

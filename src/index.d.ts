@@ -264,3 +264,45 @@ type CallData = {
   args: string
   runtime: number
 }
+
+// Chrome Offscreen API types (for Manifest V3)
+declare namespace chrome.offscreen {
+  export enum Reason {
+    TESTING = 'TESTING',
+    AUDIO_PLAYBACK = 'AUDIO_PLAYBACK',
+    IFRAME_SCRIPTING = 'IFRAME_SCRIPTING',
+    DOM_SCRAPING = 'DOM_SCRAPING',
+    BLOBS = 'BLOBS',
+    DOM_PARSER = 'DOM_PARSER',
+    USER_MEDIA = 'USER_MEDIA',
+    DISPLAY_MEDIA = 'DISPLAY_MEDIA',
+    WEB_RTC = 'WEB_RTC',
+    CLIPBOARD = 'CLIPBOARD',
+  }
+
+  export interface CreateParameters {
+    url: string
+    reasons: Array<Reason | keyof typeof Reason>
+    justification: string
+  }
+
+  export function createDocument(parameters: CreateParameters): Promise<void>
+  export function closeDocument(): Promise<void>
+  export function hasDocument(): Promise<boolean>
+}
+
+// Extend chrome.runtime for getContexts
+declare namespace chrome.runtime {
+  export interface ContextFilter {
+    contextTypes?: Array<'OFFSCREEN_DOCUMENT' | string>
+  }
+
+  export interface ExtensionContext {
+    contextType: string
+    documentId?: string
+    frameId?: number
+    tabId?: number
+  }
+
+  export function getContexts(filter: ContextFilter): Promise<ExtensionContext[]>
+}

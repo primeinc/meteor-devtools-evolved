@@ -15,11 +15,18 @@ describe('Offscreen Export Handler', () => {
     })
   })
 
-  const simulateMessage = (message: any, sender: any = { id: chrome.runtime.id }) => {
+  const simulateMessage = (
+    message: any,
+    sender: any = { id: chrome.runtime.id },
+  ) => {
     messageHandlers.forEach(handler => handler(message, sender))
   }
 
-  const createMockExportState = (token: string, filename: string, totalChunks: number) => ({
+  const createMockExportState = (
+    token: string,
+    filename: string,
+    totalChunks: number,
+  ) => ({
     token,
     filename,
     chunks: new Map<number, string>(),
@@ -30,7 +37,9 @@ describe('Offscreen Export Handler', () => {
 
   describe('Security', () => {
     it('should reject messages from unauthorized senders', () => {
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {
+        // Mock implementation
+      })
 
       // Simulate message handler registration
       const handler = (message: any, sender: any) => {
@@ -44,12 +53,16 @@ describe('Offscreen Export Handler', () => {
       // Message from different extension
       simulateMessage({ type: 'export-init' }, { id: 'malicious-extension-id' })
 
-      expect(consoleSpy).toHaveBeenCalledWith('Message from unauthorized sender')
+      expect(consoleSpy).toHaveBeenCalledWith(
+        'Message from unauthorized sender',
+      )
       consoleSpy.mockRestore()
     })
 
     it('should validate token in export-init', () => {
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {
+        // Mock implementation
+      })
 
       const handler = (message: any, sender: any) => {
         if (message.type === 'export-init' && !message.token) {
@@ -59,14 +72,20 @@ describe('Offscreen Export Handler', () => {
       }
       messageHandlers.push(handler)
 
-      simulateMessage({ type: 'export-init', filename: 'test.json', totalChunks: 1 })
+      simulateMessage({
+        type: 'export-init',
+        filename: 'test.json',
+        totalChunks: 1,
+      })
 
       expect(consoleSpy).toHaveBeenCalledWith('Export init missing token')
       consoleSpy.mockRestore()
     })
 
     it('should validate token in export-chunk', () => {
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {
+        // Mock implementation
+      })
 
       const handler = (message: any, sender: any) => {
         if (message.type === 'export-chunk') {
@@ -93,12 +112,16 @@ describe('Offscreen Export Handler', () => {
         isLast: true,
       })
 
-      expect(consoleSpy).toHaveBeenCalledWith('Export chunk received without init')
+      expect(consoleSpy).toHaveBeenCalledWith(
+        'Export chunk received without init',
+      )
       consoleSpy.mockRestore()
     })
 
     it('should validate token match in export-chunk', () => {
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {
+        // Mock implementation
+      })
       const token1 = 'correct-token'
       const token2 = 'wrong-token'
 
@@ -129,12 +152,16 @@ describe('Offscreen Export Handler', () => {
         isLast: true,
       })
 
-      expect(consoleSpy).toHaveBeenCalledWith('Export chunk received without init')
+      expect(consoleSpy).toHaveBeenCalledWith(
+        'Export chunk received without init',
+      )
       consoleSpy.mockRestore()
     })
 
     it('should validate token in export-abort', () => {
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {
+        // Mock implementation
+      })
       const token = 'test-token'
       activeExports.set(token, createMockExportState(token, 'test.json', 1))
 
@@ -153,7 +180,10 @@ describe('Offscreen Export Handler', () => {
 
       // Send abort with wrong token
       const wrongToken = 'wrong-token'
-      activeExports.set(wrongToken, createMockExportState(wrongToken, 'other.json', 1))
+      activeExports.set(
+        wrongToken,
+        createMockExportState(wrongToken, 'other.json', 1),
+      )
 
       simulateMessage({
         type: 'export-abort',
@@ -194,7 +224,9 @@ describe('Offscreen Export Handler', () => {
       const state = createMockExportState(token, 'test.json', 2)
       state.aborted = true
       activeExports.set(token, state)
-      const consoleSpy = vi.spyOn(console, 'debug').mockImplementation(() => {})
+      const consoleSpy = vi.spyOn(console, 'debug').mockImplementation(() => {
+        // Mock implementation
+      })
 
       const handler = (message: any, sender: any) => {
         if (message.type === 'export-chunk') {
@@ -216,7 +248,9 @@ describe('Offscreen Export Handler', () => {
         isLast: false,
       })
 
-      expect(consoleSpy).toHaveBeenCalledWith('Export chunk ignored - export was aborted')
+      expect(consoleSpy).toHaveBeenCalledWith(
+        'Export chunk ignored - export was aborted',
+      )
       consoleSpy.mockRestore()
     })
 
@@ -256,7 +290,11 @@ describe('Offscreen Export Handler', () => {
       const handler = (message: any, sender: any) => {
         if (message.type === 'export-chunk') {
           const exportState = activeExports.get(message.token)
-          if (exportState && !exportState.aborted && exportState.token === message.token) {
+          if (
+            exportState &&
+            !exportState.aborted &&
+            exportState.token === message.token
+          ) {
             exportState.chunks.set(message.chunkIndex, message.data)
             exportState.receivedChunks++
           }
@@ -285,7 +323,11 @@ describe('Offscreen Export Handler', () => {
       const handler = (message: any, sender: any) => {
         if (message.type === 'export-chunk') {
           const exportState = activeExports.get(message.token)
-          if (exportState && !exportState.aborted && exportState.token === message.token) {
+          if (
+            exportState &&
+            !exportState.aborted &&
+            exportState.token === message.token
+          ) {
             exportState.chunks.set(message.chunkIndex, message.data)
             exportState.receivedChunks++
           }
@@ -334,7 +376,11 @@ describe('Offscreen Export Handler', () => {
       const handler = (message: any, sender: any) => {
         if (message.type === 'export-chunk') {
           const exportState = activeExports.get(message.token)
-          if (exportState && !exportState.aborted && exportState.token === message.token) {
+          if (
+            exportState &&
+            !exportState.aborted &&
+            exportState.token === message.token
+          ) {
             exportState.chunks.set(message.chunkIndex, message.data)
             exportState.receivedChunks++
           }
@@ -387,12 +433,19 @@ describe('Offscreen Export Handler', () => {
       const handler = (message: any, sender: any) => {
         if (message.type === 'export-chunk') {
           const exportState = activeExports.get(message.token)
-          if (exportState && !exportState.aborted && exportState.token === message.token) {
+          if (
+            exportState &&
+            !exportState.aborted &&
+            exportState.token === message.token
+          ) {
             exportState.chunks.set(message.chunkIndex, message.data)
             exportState.receivedChunks++
 
             // Simulate completion
-            if (exportState.receivedChunks === exportState.totalChunks && message.isLast) {
+            if (
+              exportState.receivedChunks === exportState.totalChunks &&
+              message.isLast
+            ) {
               exportState.chunks.clear()
               activeExports.delete(message.token)
             }
@@ -441,11 +494,14 @@ describe('Offscreen Export Handler', () => {
             state.chunks.clear()
           }
 
-          activeExports.set(message.token, createMockExportState(
+          activeExports.set(
             message.token,
-            message.filename,
-            message.totalChunks,
-          ))
+            createMockExportState(
+              message.token,
+              message.filename,
+              message.totalChunks,
+            ),
+          )
         }
       }
       messageHandlers.push(handler)

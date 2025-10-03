@@ -178,9 +178,7 @@ describe('SecureExporter', () => {
       // Abort after a short delay
       setTimeout(() => exporter.abort(), 50)
 
-      await expect(
-        exporter.export(largeData, 'large.json'),
-      ).rejects.toThrow()
+      await expect(exporter.export(largeData, 'large.json')).rejects.toThrow()
     })
 
     it('should handle small data in single chunk', async () => {

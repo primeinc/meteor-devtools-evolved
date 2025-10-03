@@ -10,6 +10,8 @@ global.chrome = {
   },
   offscreen: {
     createDocument: vi.fn(),
+    closeDocument: vi.fn(),
+    hasDocument: vi.fn(),
   },
 } as any
 

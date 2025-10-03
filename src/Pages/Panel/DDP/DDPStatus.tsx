@@ -1,7 +1,12 @@
 import { Spinner, Tag, Tooltip } from '@blueprintjs/core'
 import { isNumber } from 'lodash'
 import { observer } from 'mobx-react-lite'
-import React, { FormEvent, FunctionComponent, useCallback } from 'react'
+import React, {
+  FormEvent,
+  FunctionComponent,
+  useCallback,
+  useState,
+} from 'react'
 import { usePanelStore } from '@/Stores/PanelStore'
 import { StatusBar } from '@/Components/StatusBar'
 import { DDPFilterMenu } from '@/Pages/Panel/DDP/DDPFilterMenu'
@@ -13,6 +18,7 @@ import prettyBytes from 'pretty-bytes'
 import { Field } from '@/Components/Field'
 import { StringUtils } from '@/Utils/StringUtils'
 import { AppToaster } from '@/AppToaster'
+import { SecureExporter } from '@/Utils/SecureExporter'
 
 export const DDPStatus: FunctionComponent = observer(() => {
   const store = usePanelStore()
@@ -25,6 +31,54 @@ export const DDPStatus: FunctionComponent = observer(() => {
   )
   const collectionLength = ddpStore.collection.length
   const { inboundBytes, outboundBytes, isLoading, pagination } = ddpStore
+  const [exporter, setExporter] = useState<SecureExporter | null>(null)
+  const [isExporting, setIsExporting] = useState(false)
+
+  const handleExport = useCallback(async () => {
+    try {
+      setIsExporting(true)
+      const newExporter = new SecureExporter()
+      setExporter(newExporter)
+
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+      const filename = `ddp-logs-${timestamp}.json`
+
+      await newExporter.export(ddpStore.collection, filename)
+
+      AppToaster.show({
+        icon: 'tick',
+        message: 'DDP logs exported successfully',
+        intent: 'success',
+        timeout: 2000,
+      })
+    } catch (error) {
+      if (!exporter?.isAborted()) {
+        AppToaster.show({
+          icon: 'error',
+          message: 'Failed to export DDP logs',
+          intent: 'danger',
+          timeout: 2000,
+        })
+      }
+    } finally {
+      setIsExporting(false)
+      setExporter(null)
+    }
+  }, [ddpStore.collection, exporter])
+
+  const handleAbortExport = useCallback(() => {
+    if (exporter && !exporter.isAborted()) {
+      exporter.abort()
+      AppToaster.show({
+        icon: 'warning-sign',
+        message: 'Export cancelled',
+        intent: 'warning',
+        timeout: 1500,
+      })
+      setIsExporting(false)
+      setExporter(null)
+    }
+  }, [exporter])
 
   return (
     <StatusBar>
@@ -92,6 +146,22 @@ export const DDPStatus: FunctionComponent = observer(() => {
 
         {!!outboundBytes && (
           <Field icon='cloud-upload'>{prettyBytes(outboundBytes)}</Field>
+        )}
+
+        {collectionLength > 0 && !isExporting && (
+          <Tooltip content='Export DDP logs' position='top'>
+            <Button icon='export' onClick={handleExport} disabled={isExporting}>
+              Export
+            </Button>
+          </Tooltip>
+        )}
+
+        {isExporting && (
+          <Tooltip content='Cancel export' position='top'>
+            <Button icon='cross' intent='danger' onClick={handleAbortExport}>
+              Cancel
+            </Button>
+          </Tooltip>
         )}
 
         {isNumber(collectionLength) && (

@@ -65,7 +65,9 @@ const handleExportInit = (message: ExportInit, senderId: string) => {
     aborted: false,
   })
 
-  console.debug(`Export initialized: ${message.filename}, ${message.totalChunks} chunks`)
+  console.debug(
+    `Export initialized: ${message.filename}, ${message.totalChunks} chunks`,
+  )
 }
 
 const handleExportChunk = (message: ExportChunk, senderId: string) => {
@@ -94,7 +96,9 @@ const handleExportChunk = (message: ExportChunk, senderId: string) => {
   message.data = null
 
   console.debug(
-    `Chunk ${message.chunkIndex + 1}/${message.totalChunks} received (${state.receivedChunks}/${state.totalChunks})`,
+    `Chunk ${message.chunkIndex + 1}/${message.totalChunks} received (${
+      state.receivedChunks
+    }/${state.totalChunks})`,
   )
 
   // Check if we have all chunks

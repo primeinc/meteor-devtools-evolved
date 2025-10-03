@@ -1,3 +1,7 @@
+import { createLogger } from '@/Utils/Logger'
+
+const logger = createLogger('RelayClient')
+
 const MAX_RETRY = 3
 const CHUNK = 1 * 1024 * 1024
 const ACK_TIMEOUT_MS = 5000
@@ -8,7 +12,7 @@ export class RelayClient {
 
   constructor() {
     this.port = chrome.runtime.connect({ name: 'export-relay' })
-    console.log('[RelayClient] Connected to background via port')
+    logger.debug('Connected to background via port')
   }
 
   private waitAck(match: (m:any)=>boolean) {
@@ -40,24 +44,24 @@ export class RelayClient {
     const id =
       (globalThis.crypto as any)?.randomUUID?.() ??
       `dl-${Date.now()}-${Math.random().toString(36).slice(2)}`
-    console.log('[RelayClient] Starting transfer:', { id, filename, blobSize: blob.size, mime, expectedHash })
+    logger.info('Starting transfer:', { id, filename, blobSize: blob.size, mime, expectedHash })
 
     // Send ABORT message if signal is aborted
     signal.addEventListener('abort', () => {
       try {
-        console.log('[RelayClient] Abort signal received, sending ABORT message')
+        logger.info('Abort signal received, sending ABORT message')
         this.port.postMessage({ type:'EXPORT_DOWNLOAD_ABORT', payload:{ id } })
       } catch (e) {
-        console.warn('[RelayClient] Failed to send ABORT:', e)
+        logger.warn('Failed to send ABORT:', e)
       }
     })
 
     await this.reqAck({ type:'EXPORT_DOWNLOAD_BEGIN', payload:{ id, filename, mime, expectedHash } }, (m)=> m?.type==='EXPORT_ACK' && m.payload?.id===id && m.payload?.type==='BEGIN')
-    console.log('[RelayClient] BEGIN acknowledged')
+    logger.debug('BEGIN acknowledged')
 
     const buf = new Uint8Array(await blob.arrayBuffer())
     const total = Math.ceil(buf.byteLength/CHUNK)
-    console.log('[RelayClient] Buffer size:', buf.byteLength, 'chunks:', total, 'first 4 bytes:', Array.from(buf.slice(0, 4)))
+    logger.debug('Buffer size:', buf.byteLength, 'chunks:', total, 'first 4 bytes:', Array.from(buf.slice(0, 4)))
 
     for (let idx = 0; idx < total; idx++) {
       if (signal.aborted) throw new DOMException('aborted','AbortError')
@@ -65,7 +69,7 @@ export class RelayClient {
       const end = Math.min(buf.byteLength, start + CHUNK)
       const chunk = buf.subarray(start, end)
       const bytesArray = Array.from(chunk)
-      console.log(`[RelayClient] Sending chunk ${idx+1}/${total}, size: ${bytesArray.length}, first 4 bytes:`, bytesArray.slice(0, 4))
+      logger.debug(`Sending chunk ${idx+1}/${total}, size: ${bytesArray.length}, first 4 bytes:`, bytesArray.slice(0, 4))
 
       await this.reqAck(
         { type:'EXPORT_DOWNLOAD_CHUNK', payload:{ id, idx, bytes: bytesArray } },
@@ -74,8 +78,8 @@ export class RelayClient {
       onProgress((idx + 1) / total)
     }
 
-    console.log('[RelayClient] Sending END signal')
+    logger.debug('Sending END signal')
     await this.reqAck({ type:'EXPORT_DOWNLOAD_END', payload:{ id } }, (m)=> m?.type==='EXPORT_ACK' && m.payload?.id===id && m.payload?.type==='END')
-    console.log('[RelayClient] Transfer complete')
+    logger.info('Transfer complete')
   }
 }

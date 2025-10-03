@@ -11,6 +11,9 @@ import { ByteAssembler } from './ByteAssembler'
 import { sanitizeFilename } from '@/Utils/Filename'
 import { flags } from '@/Config/flags'
 import { RelayClient } from './RelayClient'
+import { createLogger } from '@/Utils/Logger'
+
+const logger = createLogger('Export')
 
 const CHUNK_SIZE = 500
 
@@ -36,7 +39,7 @@ async function downloadViaRelay(blob: Blob, filename: string, mime: string, sign
   const bytes = new Uint8Array(await blob.arrayBuffer())
   const { sha256Hex } = await import('@/Utils/Hash')
   const expectedHash = await sha256Hex(bytes)
-  console.log('[Export] Blob hash:', expectedHash, 'size:', bytes.byteLength, 'first 4 bytes:', Array.from(bytes.slice(0, 4)))
+  logger.debug('Blob hash:', expectedHash, 'size:', bytes.byteLength, 'first 4 bytes:', Array.from(bytes.slice(0, 4)))
 
   const relay = new RelayClient()
   await relay.sendBlob(blob, filename, mime, expectedHash, signal, onProgress)
@@ -46,7 +49,7 @@ export async function saveBlob(blob: Blob, filename: string, signal: AbortSignal
   const mime = blob.type || 'application/octet-stream'
   const inPanel = inDevToolsPanel()
   const forceRelay = flags.export.useBackgroundRelay
-  console.log('[Export] saveBlob:', {
+  logger.info('saveBlob:', {
     filename,
     blobSize: blob.size,
     mime,

@@ -1,5 +1,10 @@
 import { ExportService, inferSchema } from '../ExportService'
 
+// Force anchor+blob path under tests (relay needs chrome.runtime)
+jest.mock('@/Config/flags', () => ({
+  flags: { export: { useBackgroundRelay: false } },
+}))
+
 // Mock document.createElement for anchor download
 const mockAnchor = {
   href: '',

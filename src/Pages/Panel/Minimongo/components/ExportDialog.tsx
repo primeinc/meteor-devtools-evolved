@@ -68,9 +68,16 @@ export const ExportDialog = observer(function ExportDialog(
       data += `\nAnalyzing ${docs.length} documents...`
     }
 
-    // Calculate actual size
-    const fullData = JSON.stringify(docs)
-    const bytes = new TextEncoder().encode(fullData).length
+    // Calculate actual size — sample-based estimate
+    const sample = docs.slice(0, 200).map(d => JSON.stringify(d))
+    const avg = sample.length ? sample.reduce((a, s) => a + s.length, 0) / sample.length : 0
+    const bytes = Math.round(avg * docs.length)
+    const mb = Math.round(bytes / 1024 / 1024)
+
+    // Warn if export is likely to fail (>250MB)
+    if (mb > 250) {
+      data += `\n\n⚠️ WARNING: Export size (~${mb} MB) exceeds recommended limit (250 MB).\nLarge exports may fail silently or freeze the browser.`
+    }
 
     setPreviewData(data)
     setPreviewSize(bytes)

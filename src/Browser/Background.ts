@@ -15,7 +15,7 @@ const connections: Connection = new Map()
 self.connections = connections
 
 // Port-based relay for exports (works around blob context issues)
-type Transfer = { filename: string; mime: string; chunks: Uint8Array[] }
+type Transfer = { filename: string; mime: string; expectedHash?: string; chunks: Uint8Array[] }
 const transfers = new Map<string, Transfer>()
 const downloadIdToFilename = new Map<number, string>()
 
@@ -25,13 +25,24 @@ const panelListener = () => {
 
     // Handle export relay connections
     if (port.name === 'export-relay') {
+      // Cleanup all in-flight transfers when port disconnects
+      port.onDisconnect.addListener(() => {
+        console.log('[Export] Port disconnected, cleaning up all transfers')
+        transfers.clear()
+      })
+
       port.onMessage.addListener((msg) => {
         const { type, payload } = msg || {}
         const ack = (extra?: any) => port.postMessage({ type: 'EXPORT_ACK', payload: { id: payload.id, idx: payload.idx, ...extra } })
 
         if (type === 'EXPORT_DOWNLOAD_BEGIN') {
-          console.log('[Export] BEGIN received:', payload.id, payload.filename)
-          transfers.set(payload.id, { filename: payload.filename, mime: payload.mime, chunks: [] })
+          console.log('[Export] BEGIN received:', payload.id, payload.filename, payload.expectedHash)
+          transfers.set(payload.id, {
+            filename: payload.filename,
+            mime: payload.mime,
+            expectedHash: payload.expectedHash,
+            chunks: []
+          })
           ack({ type: 'BEGIN' }); return
         }
 
@@ -42,7 +53,7 @@ const panelListener = () => {
             return
           }
           const chunkBytes = new Uint8Array(payload.bytes)
-          console.log(`[Export] Chunk ${payload.idx} received:`, chunkBytes.byteLength, 'bytes')
+          console.log(`[Export] Chunk ${payload.idx} received:`, chunkBytes.byteLength, 'bytes, first 4 bytes:', Array.from(chunkBytes.slice(0, 4)))
           t.chunks.push(chunkBytes)
           ack({ type: 'CHUNK', idx: payload.idx }); return
         }
@@ -56,93 +67,77 @@ const panelListener = () => {
           }
           console.log('[Export] Transfer has', t.chunks.length, 'chunks')
 
-          // Concatenate all chunks into a single Uint8Array
-          let totalLength = 0
-          for (const chunk of t.chunks) {
-            totalLength += chunk.length
+          // Assemble Blob directly (no base64 string churn)
+          const blob = new Blob(t.chunks, { type: t.mime || 'application/octet-stream' })
+          const filename = t.filename || 'export.json'
+
+          // Verify checksum if provided
+          if (t.expectedHash) {
+            const verifyHash = async () => {
+              const buf = await blob.arrayBuffer()
+              const digest = await crypto.subtle.digest('SHA-256', buf)
+              const arr = new Uint8Array(digest)
+              const actualHash = Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('')
+              console.log('[Export] Hash verification:', { expected: t.expectedHash, actual: actualHash })
+
+              if (actualHash !== t.expectedHash) {
+                console.error('[Export] HASH_MISMATCH detected!')
+                transfers.delete(payload.id)
+                port.postMessage({ type: 'EXPORT_FAILED', payload: { id: payload.id, reason: 'HASH_MISMATCH' } })
+                ack({ type: 'END' })
+                return false
+              }
+              return true
+            }
+
+            // Wait for hash verification before downloading
+            verifyHash().then(valid => {
+              if (!valid) return
+              startDownload()
+            })
+            return
           }
-          console.log('[Export] Total byte length:', totalLength)
 
-          const combined = new Uint8Array(totalLength)
-          let offset = 0
-          for (const chunk of t.chunks) {
-            combined.set(chunk, offset)
-            offset += chunk.length
-          }
+          // No hash verification, proceed immediately
+          startDownload()
 
-          // Convert to base64 (service workers don't have FileReader or URL.createObjectURL)
-          let binary = ''
-          const bytes = new Uint8Array(combined)
-          const len = bytes.byteLength
-          console.log('[Export] Converting', len, 'bytes to base64')
-          for (let i = 0; i < len; i++) {
-            binary += String.fromCharCode(bytes[i])
-          }
-          const base64 = btoa(binary)
-          console.log('[Export] Base64 length:', base64.length)
-
-          // Create data URL and download
-          const dataUrl = `data:${t.mime || 'application/octet-stream'};base64,${base64}`
-
-          // Ensure filename is properly formatted
-          const downloadFilename = t.filename || 'export.json'
-          console.log('[Export] Downloading with filename:', downloadFilename)
-          console.log('[Export] Data URL length:', dataUrl.length)
-
-          // Download the file
-          chrome.downloads.download({
-            url: dataUrl,
-            filename: downloadFilename
-          }, function(downloadId) {
-            if (chrome.runtime.lastError) {
-              console.error('[Export] Download failed:', chrome.runtime.lastError)
-              transfers.delete(payload.id)
-              port.postMessage({ type: 'EXPORT_DONE', payload: { id: payload.id, error: chrome.runtime.lastError.message } })
-            } else {
+          function startDownload() {
+            const done = (downloadId?: number) => {
+              if (chrome.runtime.lastError) {
+                console.error('[Export] Download failed:', chrome.runtime.lastError)
+                transfers.delete(payload.id)
+                port.postMessage({ type: 'EXPORT_DONE', payload: { id: payload.id, error: chrome.runtime.lastError.message } })
+                return
+              }
               console.log('[Export] Download started with ID:', downloadId)
-              // Track the filename for this download ID
-              downloadIdToFilename.set(downloadId, downloadFilename)
-
-              // Check the actual download item immediately
-              setTimeout(() => {
-                chrome.downloads.search({id: downloadId}, function(items) {
-                  if (items && items[0]) {
-                    const item = items[0]
-                    console.log('[Export] Download details:')
-                    console.log('  - ID:', item.id)
-                    console.log('  - Filename:', item.filename || '(EMPTY)')
-                    console.log('  - State:', item.state)
-                    console.log('  - Exists:', item.exists)
-                    console.log('  - Error:', item.error || 'none')
-                    console.log('  - Danger:', item.danger)
-                    console.log('  - Paused:', item.paused)
-                    console.log('  - CanResume:', item.canResume)
-                    console.log('  - BytesReceived:', item.bytesReceived)
-                    console.log('  - TotalBytes:', item.totalBytes)
-                    console.log('  - FileSize:', item.fileSize)
-                    console.log('  - StartTime:', item.startTime)
-                    console.log('  - URL substr:', item.url?.substring(0, 50))
-
-                    if (item.state === 'interrupted') {
-                      console.error('[Export] DOWNLOAD INTERRUPTED! Error:', item.error)
-                      // Try to resume if possible
-                      if (item.canResume) {
-                        console.log('[Export] Attempting to resume download...')
-                        chrome.downloads.resume(downloadId)
-                      }
-                    } else if (item.state === 'in_progress' && !item.filename) {
-                      console.error('[Export] CRITICAL: Download in progress but no filename!')
-                      console.error('[Export] This means Chrome cannot write the file to disk')
-                    }
-                  }
-                })
-              }, 1000) // Wait 1 second to check status
-
+              if (downloadId) downloadIdToFilename.set(downloadId, filename)
               transfers.delete(payload.id)
               port.postMessage({ type: 'EXPORT_DONE', payload: { id: payload.id, downloadId } })
             }
-          })
-          ack({ type: 'END' }); return
+
+            const supportsObjectURL = typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function'
+
+            if (supportsObjectURL) {
+              const url = URL.createObjectURL(blob)
+              chrome.downloads.download({ url, filename, saveAs: false }, (id) => {
+                done(id)
+                // revoke a bit later
+                setTimeout(() => URL.revokeObjectURL(url), 10_000)
+              })
+            } else {
+              // Fallback: data URL (slower, but SW-compatible if objectURL is missing)
+              blob.arrayBuffer().then(buf => {
+                const bytes = new Uint8Array(buf)
+                let binary = ''
+                for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
+                const dataUrl = `data:${t.mime || 'application/octet-stream'};base64,${btoa(binary)}`
+                chrome.downloads.download({ url: dataUrl, filename, saveAs: false }, done)
+              })
+            }
+
+            ack({ type: 'END' })
+          }
+          return
         }
 
         if (type === 'EXPORT_DOWNLOAD_ABORT') {

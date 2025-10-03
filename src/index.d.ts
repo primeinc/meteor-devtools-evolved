@@ -304,5 +304,7 @@ declare namespace chrome.runtime {
     tabId?: number
   }
 
-  export function getContexts(filter: ContextFilter): Promise<ExtensionContext[]>
+  export function getContexts(
+    filter: ContextFilter,
+  ): Promise<ExtensionContext[]>
 }

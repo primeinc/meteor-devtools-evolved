@@ -32,10 +32,13 @@ export const MinimongoStatus: FunctionComponent = observer(() => {
 
       const dataToExport = minimongoStore.activeCollection
         ? minimongoStore.activeCollectionDocuments.collection
-        : Object.entries(minimongoStore.collections).reduce((acc, [name, docs]) => {
-            acc[name] = docs.map(wrapper => wrapper.document)
-            return acc
-          }, {} as Record<string, IDocument[]>)
+        : Object.entries(minimongoStore.collections).reduce(
+            (acc, [name, docs]) => {
+              acc[name] = docs.map(wrapper => wrapper.document)
+              return acc
+            },
+            {} as Record<string, IDocument[]>,
+          )
 
       await newExporter.export(dataToExport, filename)
 

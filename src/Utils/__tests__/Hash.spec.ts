@@ -9,7 +9,9 @@ describe('Hash', () => {
         const hash = await sha256Hex(input)
 
         // NIST test vector: SHA-256("")
-        expect(hash).toBe('e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855')
+        expect(hash).toBe(
+          'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+        )
       })
 
       it('should hash "abc" correctly', async () => {
@@ -17,15 +19,21 @@ describe('Hash', () => {
         const hash = await sha256Hex(input)
 
         // NIST test vector: SHA-256("abc")
-        expect(hash).toBe('ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad')
+        expect(hash).toBe(
+          'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
+        )
       })
 
       it('should hash "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq" correctly', async () => {
-        const input = new TextEncoder().encode('abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq')
+        const input = new TextEncoder().encode(
+          'abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq',
+        )
         const hash = await sha256Hex(input)
 
         // NIST test vector: SHA-256(448-bit message)
-        expect(hash).toBe('248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1')
+        expect(hash).toBe(
+          '248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1',
+        )
       })
     })
 
@@ -34,7 +42,9 @@ describe('Hash', () => {
       const hash = await sha256Hex(input)
 
       // Known SHA-256 hash of "hello world"
-      expect(hash).toBe('b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9')
+      expect(hash).toBe(
+        'b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9',
+      )
     })
 
     it('should produce different hashes for different inputs', async () => {
@@ -57,7 +67,7 @@ describe('Hash', () => {
     })
 
     it('should handle binary data correctly', async () => {
-      const input = new Uint8Array([0x00, 0x01, 0xFF, 0xAB, 0xCD])
+      const input = new Uint8Array([0x00, 0x01, 0xff, 0xab, 0xcd])
       const hash = await sha256Hex(input)
 
       expect(hash).toHaveLength(64) // SHA-256 produces 64 hex characters

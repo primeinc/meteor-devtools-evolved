@@ -9,77 +9,170 @@ const ACK_TIMEOUT_MS = 5000
 export class RelayClient {
   private port: chrome.runtime.Port
   private failureListener: ((m: any) => void) | null = null
+  private securityToken: string
 
   constructor() {
     this.port = chrome.runtime.connect({ name: 'export-relay' })
-    logger.debug('Connected to background via port')
+    // Generate random security token for this session
+    this.securityToken = this.generateToken()
+    logger.debug('Connected to background via port with token')
   }
 
-  private waitAck(match: (m:any)=>boolean) {
+  private generateToken(): string {
+    // Generate cryptographically secure random token
+    const crypto = globalThis.crypto as any
+    if (crypto?.randomUUID) {
+      return crypto.randomUUID()
+    }
+    // Fallback for older browsers
+    const array = new Uint8Array(16)
+    globalThis.crypto.getRandomValues(array)
+    return Array.from(array, b => b.toString(16).padStart(2, '0')).join('')
+  }
+
+  private waitAck(match: (m: any) => boolean) {
     return new Promise<void>((resolve, reject) => {
-      const t = setTimeout(() => { off(); reject(new Error('ACK timeout')) }, ACK_TIMEOUT_MS)
-      const on = (m:any) => {
-        // Check for EXPORT_FAILED first
+      const t = setTimeout(() => {
+        off()
+        reject(new Error('ACK timeout'))
+      }, ACK_TIMEOUT_MS)
+      const on = (m: any) => {
+        // Check for EXPORT_FAILED first (don't validate token for error messages)
         if (m?.type === 'EXPORT_FAILED') {
           clearTimeout(t)
           off()
-          reject(new Error(`Export failed: ${m.payload?.reason || 'Unknown error'}`))
+          reject(
+            new Error(`Export failed: ${m.payload?.reason || 'Unknown error'}`),
+          )
           return
         }
-        if (match(m)) { clearTimeout(t); off(); resolve() }
+        // Verify security token in response
+        if (m?.payload?.token && m.payload.token !== this.securityToken) {
+          logger.error('Invalid security token in response')
+          return // Ignore messages with wrong token
+        }
+        if (match(m)) {
+          clearTimeout(t)
+          off()
+          resolve()
+        }
       }
       const off = () => this.port.onMessage.removeListener(on)
       this.port.onMessage.addListener(on)
     })
   }
 
-  private async reqAck(msg: any, matcher: (m:any)=>boolean) {
+  private async reqAck(msg: any, matcher: (m: any) => boolean) {
     for (let attempt = 0; attempt <= MAX_RETRY; attempt++) {
       this.port.postMessage(msg)
-      try { await this.waitAck(matcher); return } catch (e) { if (attempt === MAX_RETRY) throw e }
+      try {
+        await this.waitAck(matcher)
+        return
+      } catch (e) {
+        if (attempt === MAX_RETRY) throw e
+      }
     }
   }
 
-  async sendBlob(blob: Blob, filename: string, mime: string, expectedHash: string, signal: AbortSignal, onProgress: (p:number)=>void) {
+  async sendBlob(
+    blob: Blob,
+    filename: string,
+    mime: string,
+    expectedHash: string,
+    signal: AbortSignal,
+    onProgress: (p: number) => void,
+  ) {
     const id =
       (globalThis.crypto as any)?.randomUUID?.() ??
       `dl-${Date.now()}-${Math.random().toString(36).slice(2)}`
-    logger.info('Starting transfer:', { id, filename, blobSize: blob.size, mime, expectedHash })
+    logger.info('Starting transfer:', {
+      id,
+      filename,
+      blobSize: blob.size,
+      mime,
+      expectedHash,
+    })
 
     // Send ABORT message if signal is aborted
     signal.addEventListener('abort', () => {
       try {
         logger.info('Abort signal received, sending ABORT message')
-        this.port.postMessage({ type:'EXPORT_DOWNLOAD_ABORT', payload:{ id } })
+        this.port.postMessage({
+          type: 'EXPORT_DOWNLOAD_ABORT',
+          payload: { id, token: this.securityToken },
+        })
       } catch (e) {
         logger.warn('Failed to send ABORT:', e)
       }
     })
 
-    await this.reqAck({ type:'EXPORT_DOWNLOAD_BEGIN', payload:{ id, filename, mime, expectedHash } }, (m)=> m?.type==='EXPORT_ACK' && m.payload?.id===id && m.payload?.type==='BEGIN')
+    await this.reqAck(
+      {
+        type: 'EXPORT_DOWNLOAD_BEGIN',
+        payload: {
+          id,
+          filename,
+          mime,
+          expectedHash,
+          token: this.securityToken,
+        },
+      },
+      m =>
+        m?.type === 'EXPORT_ACK' &&
+        m.payload?.id === id &&
+        m.payload?.type === 'BEGIN',
+    )
     logger.debug('BEGIN acknowledged')
 
     const buf = new Uint8Array(await blob.arrayBuffer())
-    const total = Math.ceil(buf.byteLength/CHUNK)
-    logger.debug('Buffer size:', buf.byteLength, 'chunks:', total, 'first 4 bytes:', Array.from(buf.slice(0, 4)))
+    const total = Math.ceil(buf.byteLength / CHUNK)
+    logger.debug(
+      'Buffer size:',
+      buf.byteLength,
+      'chunks:',
+      total,
+      'first 4 bytes:',
+      Array.from(buf.slice(0, 4)),
+    )
 
     for (let idx = 0; idx < total; idx++) {
-      if (signal.aborted) throw new DOMException('aborted','AbortError')
+      if (signal.aborted) throw new DOMException('aborted', 'AbortError')
       const start = idx * CHUNK
       const end = Math.min(buf.byteLength, start + CHUNK)
       const chunk = buf.subarray(start, end)
       const bytesArray = Array.from(chunk)
-      logger.debug(`Sending chunk ${idx+1}/${total}, size: ${bytesArray.length}, first 4 bytes:`, bytesArray.slice(0, 4))
+      logger.debug(
+        `Sending chunk ${idx + 1}/${total}, size: ${
+          bytesArray.length
+        }, first 4 bytes:`,
+        bytesArray.slice(0, 4),
+      )
 
       await this.reqAck(
-        { type:'EXPORT_DOWNLOAD_CHUNK', payload:{ id, idx, bytes: bytesArray } },
-        (m)=> m?.type==='EXPORT_ACK' && m.payload?.id===id && m.payload?.type==='CHUNK' && m.payload?.idx===idx
+        {
+          type: 'EXPORT_DOWNLOAD_CHUNK',
+          payload: { id, idx, bytes: bytesArray, token: this.securityToken },
+        },
+        m =>
+          m?.type === 'EXPORT_ACK' &&
+          m.payload?.id === id &&
+          m.payload?.type === 'CHUNK' &&
+          m.payload?.idx === idx,
       )
       onProgress((idx + 1) / total)
     }
 
     logger.debug('Sending END signal')
-    await this.reqAck({ type:'EXPORT_DOWNLOAD_END', payload:{ id } }, (m)=> m?.type==='EXPORT_ACK' && m.payload?.id===id && m.payload?.type==='END')
+    await this.reqAck(
+      {
+        type: 'EXPORT_DOWNLOAD_END',
+        payload: { id, token: this.securityToken },
+      },
+      m =>
+        m?.type === 'EXPORT_ACK' &&
+        m.payload?.id === id &&
+        m.payload?.type === 'END',
+    )
     logger.info('Transfer complete')
   }
 }

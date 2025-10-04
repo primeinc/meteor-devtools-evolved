@@ -6,12 +6,16 @@ describe('Filename', () => {
       // Based on pathvalidate library test patterns
       it('should sanitize pathvalidate pattern #1', () => {
         // Pattern from pathvalidate: fi:l*e/p"a?t>h|.t<xt
-        expect(sanitizeFilename('fi:l*e/p"a?t>h|.t<xt')).toBe('fi_l_e_p_a_t_h_.t_xt')
+        expect(sanitizeFilename('fi:l*e/p"a?t>h|.t<xt')).toBe(
+          'fi_l_e_p_a_t_h_.t_xt',
+        )
       })
 
       it('should sanitize pathvalidate pattern #2', () => {
         // Pattern from pathvalidate: \0_a*b:c<d>e%f/(g)h+i_0.txt
-        expect(sanitizeFilename('\0_a*b:c<d>e%f/(g)h+i_0.txt')).toBe('__a_b_c_d_e%f_(g)h+i_0.txt')
+        expect(sanitizeFilename('\0_a*b:c<d>e%f/(g)h+i_0.txt')).toBe(
+          '__a_b_c_d_e%f_(g)h+i_0.txt',
+        )
       })
 
       it('should replace null byte', () => {
@@ -55,23 +59,31 @@ describe('Filename', () => {
       })
 
       it('should replace multiple invalid characters', () => {
-        expect(sanitizeFilename('bad/name:with*chars')).toBe('bad_name_with_chars')
+        expect(sanitizeFilename('bad/name:with*chars')).toBe(
+          'bad_name_with_chars',
+        )
       })
 
       it('should handle all invalid characters at once', () => {
-        expect(sanitizeFilename('a\0b\\c/d:e*f?g"h<i>j|k')).toBe('a_b_c_d_e_f_g_h_i_j_k')
+        expect(sanitizeFilename('a\0b\\c/d:e*f?g"h<i>j|k')).toBe(
+          'a_b_c_d_e_f_g_h_i_j_k',
+        )
       })
     })
 
     describe('path traversal protection', () => {
       it('should sanitize relative path traversal', () => {
         // Dots are preserved except trailing ones, slashes become underscores
-        expect(sanitizeFilename('../../../etc/passwd')).toBe('.._.._.._etc_passwd')
+        expect(sanitizeFilename('../../../etc/passwd')).toBe(
+          '.._.._.._etc_passwd',
+        )
       })
 
       it('should sanitize Windows path traversal', () => {
         // Backslashes become underscores, dots preserved except trailing
-        expect(sanitizeFilename('..\\..\\..\\windows\\system32')).toBe('.._.._.._windows_system32')
+        expect(sanitizeFilename('..\\..\\..\\windows\\system32')).toBe(
+          '.._.._.._windows_system32',
+        )
       })
 
       it('should sanitize absolute Unix path', () => {
@@ -79,11 +91,15 @@ describe('Filename', () => {
       })
 
       it('should sanitize absolute Windows path', () => {
-        expect(sanitizeFilename('C:\\Windows\\System32')).toBe('C__Windows_System32')
+        expect(sanitizeFilename('C:\\Windows\\System32')).toBe(
+          'C__Windows_System32',
+        )
       })
 
       it('should sanitize UNC path', () => {
-        expect(sanitizeFilename('\\\\server\\share\\file')).toBe('__server_share_file')
+        expect(sanitizeFilename('\\\\server\\share\\file')).toBe(
+          '__server_share_file',
+        )
       })
     })
 
@@ -245,18 +261,24 @@ describe('Filename', () => {
       })
 
       it('should handle typical timestamp suffix', () => {
-        expect(sanitizeFilename('users_2024-01-01T00:00:00.000Z')).toBe('users_2024-01-01T00_00_00.000Z')
+        expect(sanitizeFilename('users_2024-01-01T00:00:00.000Z')).toBe(
+          'users_2024-01-01T00_00_00.000Z',
+        )
       })
     })
 
     describe('XSS and injection prevention', () => {
       it('should sanitize HTML tags', () => {
-        expect(sanitizeFilename('<script>alert("xss")</script>')).toBe('_script_alert(_xss_)__script_')
+        expect(sanitizeFilename('<script>alert("xss")</script>')).toBe(
+          '_script_alert(_xss_)__script_',
+        )
       })
 
       it('should sanitize SQL injection attempt', () => {
         // Single quote and semicolon are not in INVALID regex
-        expect(sanitizeFilename("'; DROP TABLE users--")).toBe("'; DROP TABLE users--")
+        expect(sanitizeFilename("'; DROP TABLE users--")).toBe(
+          "'; DROP TABLE users--",
+        )
       })
 
       it('should sanitize shell command injection', () => {
@@ -276,7 +298,9 @@ describe('Filename', () => {
       })
 
       it('should handle mixed valid and invalid', () => {
-        expect(sanitizeFilename('valid-name/invalid:part')).toBe('valid-name_invalid_part')
+        expect(sanitizeFilename('valid-name/invalid:part')).toBe(
+          'valid-name_invalid_part',
+        )
       })
 
       it('should be idempotent', () => {

@@ -85,10 +85,7 @@ module.exports = (browser = 'chrome', override) => {
                 transpileOnly: true,
               },
             },
-            exclude: [
-              /\.(spec|test)\.tsx?$/,
-              /__tests__/
-            ]
+            exclude: [/\.(spec|test)\.tsx?$/, /__tests__/],
           },
           {
             test: /\.css$/,

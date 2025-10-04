@@ -247,10 +247,7 @@ describe('inferSchema', () => {
     })
 
     it('should merge nested objects with different keys', () => {
-      const docs = [
-        { user: { name: 'Alice' } },
-        { user: { age: 30 } },
-      ]
+      const docs = [{ user: { name: 'Alice' } }, { user: { age: 30 } }]
       const schema = inferSchema(docs, noop, signal)
 
       expect(schema.properties.user.properties).toHaveProperty('name')
@@ -355,7 +352,14 @@ describe('inferSchema', () => {
     })
 
     it('should collapse nested arrays', () => {
-      const docs = [{ matrix: [[1, 2], [3, 4]] }]
+      const docs = [
+        {
+          matrix: [
+            [1, 2],
+            [3, 4],
+          ],
+        },
+      ]
       const schema = inferSchema(docs, noop, signal)
 
       expect(schema.properties.matrix).toEqual({ type: 'array' })
@@ -366,8 +370,12 @@ describe('inferSchema', () => {
       const schema = inferSchema(docs, noop, signal)
 
       expect(schema.properties.values.type).toBe('array')
-      expect(schema.properties.values.items.anyOf).toContainEqual({ type: 'number' })
-      expect(schema.properties.values.items.anyOf).toContainEqual({ type: 'string' })
+      expect(schema.properties.values.items.anyOf).toContainEqual({
+        type: 'number',
+      })
+      expect(schema.properties.values.items.anyOf).toContainEqual({
+        type: 'string',
+      })
     })
   })
 
@@ -429,7 +437,9 @@ describe('inferSchema', () => {
       ]
       const schema = inferSchema(docs, noop, signal)
 
-      expect(schema.$schema).toBe('https://json-schema.org/draft/2020-12/schema')
+      expect(schema.$schema).toBe(
+        'https://json-schema.org/draft/2020-12/schema',
+      )
       expect(schema.type).toBe('object')
       expect(schema.properties._id.type).toBe('string')
       expect(schema.properties.user.type).toBe('object')

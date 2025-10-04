@@ -19,7 +19,14 @@ const connections: Connection = new Map()
 self.connections = connections
 
 // Port-based relay for exports (works around blob context issues)
-type Transfer = { filename: string; mime: string; expectedHash?: string; chunks: Uint8Array[] }
+type Transfer = {
+  filename: string
+  mime: string
+  expectedHash?: string
+  chunks: Uint8Array[]
+  token: string
+  senderId: string
+}
 const transfers = new Map<string, Transfer>()
 const downloadIdToFilename = new Map<number, string>()
 
@@ -29,37 +36,115 @@ const panelListener = () => {
 
     // Handle export relay connections
     if (port.name === 'export-relay') {
+      const senderId = port.sender?.id || 'unknown'
+      exportLogger.info('Export relay port connected from:', senderId)
+
       // Cleanup all in-flight transfers when port disconnects
       port.onDisconnect.addListener(() => {
         exportLogger.info('Port disconnected, cleaning up all transfers')
-        transfers.clear()
+        // Clear only transfers from this sender
+        for (const [id, transfer] of transfers.entries()) {
+          if (transfer.senderId === senderId) {
+            exportLogger.debug('Cleaning up transfer:', id)
+            transfers.delete(id)
+          }
+        }
       })
 
-      port.onMessage.addListener((msg) => {
+      port.onMessage.addListener(msg => {
         const { type, payload } = msg || {}
-        const ack = (extra?: any) => port.postMessage({ type: 'EXPORT_ACK', payload: { id: payload.id, idx: payload.idx, ...extra } })
+        const ack = (extra?: any) =>
+          port.postMessage({
+            type: 'EXPORT_ACK',
+            payload: {
+              id: payload.id,
+              idx: payload.idx,
+              token: payload.token,
+              ...extra,
+            },
+          })
+
+        // Validate sender ID matches the port's sender
+        if (!port.sender || port.sender.id !== senderId) {
+          exportLogger.error('Sender ID mismatch, rejecting message')
+          port.postMessage({
+            type: 'EXPORT_FAILED',
+            payload: { id: payload.id, reason: 'INVALID_SENDER' },
+          })
+          return
+        }
+
+        // Validate token is present
+        if (!payload?.token) {
+          exportLogger.error('Missing security token in message')
+          port.postMessage({
+            type: 'EXPORT_FAILED',
+            payload: { id: payload.id, reason: 'MISSING_TOKEN' },
+          })
+          return
+        }
 
         if (type === 'EXPORT_DOWNLOAD_BEGIN') {
-          exportLogger.info('BEGIN received:', payload.id, payload.filename, payload.expectedHash)
+          exportLogger.info(
+            'BEGIN received:',
+            payload.id,
+            payload.filename,
+            payload.expectedHash,
+            'token:',
+            payload.token,
+          )
           transfers.set(payload.id, {
             filename: payload.filename,
             mime: payload.mime,
             expectedHash: payload.expectedHash,
-            chunks: []
+            chunks: [],
+            token: payload.token,
+            senderId,
           })
-          ack({ type: 'BEGIN' }); return
+          ack({ type: 'BEGIN' })
+          return
         }
 
         if (type === 'EXPORT_DOWNLOAD_CHUNK') {
           const t = transfers.get(payload.id)
           if (!t) {
             exportLogger.error('No transfer found for chunk:', payload.id)
+            port.postMessage({
+              type: 'EXPORT_FAILED',
+              payload: { id: payload.id, reason: 'TRANSFER_NOT_FOUND' },
+            })
+            return
+          }
+          // Verify token matches
+          if (t.token !== payload.token) {
+            exportLogger.error('Token mismatch for chunk:', payload.id)
+            transfers.delete(payload.id)
+            port.postMessage({
+              type: 'EXPORT_FAILED',
+              payload: { id: payload.id, reason: 'INVALID_TOKEN' },
+            })
+            return
+          }
+          // Verify sender ID matches
+          if (t.senderId !== senderId) {
+            exportLogger.error('Sender ID mismatch for chunk:', payload.id)
+            transfers.delete(payload.id)
+            port.postMessage({
+              type: 'EXPORT_FAILED',
+              payload: { id: payload.id, reason: 'INVALID_SENDER' },
+            })
             return
           }
           const chunkBytes = new Uint8Array(payload.bytes)
-          exportLogger.debug(`Chunk ${payload.idx} received:`, chunkBytes.byteLength, 'bytes, first 4 bytes:', Array.from(chunkBytes.slice(0, 4)))
+          exportLogger.debug(
+            `Chunk ${payload.idx} received:`,
+            chunkBytes.byteLength,
+            'bytes, first 4 bytes:',
+            Array.from(chunkBytes.slice(0, 4)),
+          )
           t.chunks.push(chunkBytes)
-          ack({ type: 'CHUNK', idx: payload.idx }); return
+          ack({ type: 'CHUNK', idx: payload.idx })
+          return
         }
 
         if (type === 'EXPORT_DOWNLOAD_END') {
@@ -67,12 +152,38 @@ const panelListener = () => {
           const t = transfers.get(payload.id)
           if (!t) {
             exportLogger.error('No transfer found for ID:', payload.id)
+            port.postMessage({
+              type: 'EXPORT_FAILED',
+              payload: { id: payload.id, reason: 'TRANSFER_NOT_FOUND' },
+            })
+            return
+          }
+          // Verify token matches
+          if (t.token !== payload.token) {
+            exportLogger.error('Token mismatch for END:', payload.id)
+            transfers.delete(payload.id)
+            port.postMessage({
+              type: 'EXPORT_FAILED',
+              payload: { id: payload.id, reason: 'INVALID_TOKEN' },
+            })
+            return
+          }
+          // Verify sender ID matches
+          if (t.senderId !== senderId) {
+            exportLogger.error('Sender ID mismatch for END:', payload.id)
+            transfers.delete(payload.id)
+            port.postMessage({
+              type: 'EXPORT_FAILED',
+              payload: { id: payload.id, reason: 'INVALID_SENDER' },
+            })
             return
           }
           exportLogger.debug('Transfer has', t.chunks.length, 'chunks')
 
           // Assemble Blob directly (no base64 string churn)
-          const blob = new Blob(t.chunks, { type: t.mime || 'application/octet-stream' })
+          const blob = new Blob(t.chunks, {
+            type: t.mime || 'application/octet-stream',
+          })
           const filename = t.filename || 'export.json'
 
           // Verify checksum if provided
@@ -81,13 +192,21 @@ const panelListener = () => {
               const buf = await blob.arrayBuffer()
               const digest = await crypto.subtle.digest('SHA-256', buf)
               const arr = new Uint8Array(digest)
-              const actualHash = Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('')
-              exportLogger.debug('Hash verification:', { expected: t.expectedHash, actual: actualHash })
+              const actualHash = Array.from(arr)
+                .map(b => b.toString(16).padStart(2, '0'))
+                .join('')
+              exportLogger.debug('Hash verification:', {
+                expected: t.expectedHash,
+                actual: actualHash,
+              })
 
               if (actualHash !== t.expectedHash) {
                 exportLogger.error('HASH_MISMATCH detected!')
                 transfers.delete(payload.id)
-                port.postMessage({ type: 'EXPORT_FAILED', payload: { id: payload.id, reason: 'HASH_MISMATCH' } })
+                port.postMessage({
+                  type: 'EXPORT_FAILED',
+                  payload: { id: payload.id, reason: 'HASH_MISMATCH' },
+                })
                 // DO NOT send ACK on error - let EXPORT_FAILED propagate
                 return false
               }
@@ -110,32 +229,52 @@ const panelListener = () => {
               if (chrome.runtime.lastError) {
                 exportLogger.error('Download failed:', chrome.runtime.lastError)
                 transfers.delete(payload.id)
-                port.postMessage({ type: 'EXPORT_DONE', payload: { id: payload.id, error: chrome.runtime.lastError.message } })
+                port.postMessage({
+                  type: 'EXPORT_DONE',
+                  payload: {
+                    id: payload.id,
+                    error: chrome.runtime.lastError.message,
+                  },
+                })
                 return
               }
               exportLogger.info('Download started with ID:', downloadId)
               if (downloadId) downloadIdToFilename.set(downloadId, filename)
               transfers.delete(payload.id)
-              port.postMessage({ type: 'EXPORT_DONE', payload: { id: payload.id, downloadId } })
+              port.postMessage({
+                type: 'EXPORT_DONE',
+                payload: { id: payload.id, downloadId },
+              })
             }
 
-            const supportsObjectURL = typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function'
+            const supportsObjectURL =
+              typeof URL !== 'undefined' &&
+              typeof URL.createObjectURL === 'function'
 
             if (supportsObjectURL) {
               const url = URL.createObjectURL(blob)
-              chrome.downloads.download({ url, filename, saveAs: false }, (id) => {
-                done(id)
-                // revoke a bit later
-                setTimeout(() => URL.revokeObjectURL(url), 10_000)
-              })
+              chrome.downloads.download(
+                { url, filename, saveAs: false },
+                id => {
+                  done(id)
+                  // revoke a bit later
+                  setTimeout(() => URL.revokeObjectURL(url), 10_000)
+                },
+              )
             } else {
               // Fallback: data URL (slower, but SW-compatible if objectURL is missing)
               blob.arrayBuffer().then(buf => {
                 const bytes = new Uint8Array(buf)
                 let binary = ''
-                for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
-                const dataUrl = `data:${t.mime || 'application/octet-stream'};base64,${btoa(binary)}`
-                chrome.downloads.download({ url: dataUrl, filename, saveAs: false }, done)
+                for (let i = 0; i < bytes.length; i++)
+                  binary += String.fromCharCode(bytes[i])
+                const dataUrl = `data:${
+                  t.mime || 'application/octet-stream'
+                };base64,${btoa(binary)}`
+                chrome.downloads.download(
+                  { url: dataUrl, filename, saveAs: false },
+                  done,
+                )
               })
             }
 
@@ -145,8 +284,32 @@ const panelListener = () => {
         }
 
         if (type === 'EXPORT_DOWNLOAD_ABORT') {
-          transfers.delete(payload.id)
-          ack({ type: 'ABORT' }); return
+          const t = transfers.get(payload.id)
+          if (t) {
+            // Verify token and sender before allowing abort
+            if (t.token === payload.token && t.senderId === senderId) {
+              exportLogger.info('ABORT received for transfer:', payload.id)
+              transfers.delete(payload.id)
+              ack({ type: 'ABORT' })
+            } else {
+              exportLogger.error(
+                'Invalid token or sender for ABORT:',
+                payload.id,
+              )
+              port.postMessage({
+                type: 'EXPORT_FAILED',
+                payload: { id: payload.id, reason: 'INVALID_ABORT' },
+              })
+            }
+          } else {
+            // Transfer not found - may have already completed or been aborted
+            exportLogger.debug(
+              'ABORT for non-existent transfer (already cleaned up?):',
+              payload.id,
+            )
+            ack({ type: 'ABORT' })
+          }
+          return
         }
       })
       return
@@ -195,7 +358,7 @@ action.onClicked.addListener(e => {
     .create({
       url: 'http://cloud.meteor.com/?utm_source=chrome_extension&utm_medium=extension&utm_campaign=meteor_devtools_evolved',
     })
-    .catch((err) => logger.error('Failed to create tab:', err))
+    .catch(err => logger.error('Failed to create tab:', err))
 })
 
 const handleConsole = (
@@ -257,7 +420,7 @@ const tabListener = () => {
         .create({
           url: request.data.url,
         })
-        .catch((err) => logger.error('Failed to create tab:', err)),
+        .catch(err => logger.error('Failed to create tab:', err)),
     // Remove old download-blob handler - we use port-based relay now
   }
   /**
@@ -280,7 +443,10 @@ const tabListener = () => {
 
 // Override download filenames for data URLs
 chrome.downloads.onDeterminingFilename.addListener((downloadItem, suggest) => {
-  exportLogger.debug('onDeterminingFilename called for download ID:', downloadItem.id)
+  exportLogger.debug(
+    'onDeterminingFilename called for download ID:',
+    downloadItem.id,
+  )
 
   // Check if we have a tracked filename for this download
   const trackedFilename = downloadIdToFilename.get(downloadItem.id)
@@ -292,7 +458,9 @@ chrome.downloads.onDeterminingFilename.addListener((downloadItem, suggest) => {
     downloadIdToFilename.delete(downloadItem.id)
   } else if (downloadItem.url.startsWith('data:application/json;base64,')) {
     // Fallback for data URL exports without tracked filename
-    exportLogger.debug('Data URL export without tracked filename, using default')
+    exportLogger.debug(
+      'Data URL export without tracked filename, using default',
+    )
     suggest({ filename: 'export.json' })
   } else {
     // Let other downloads proceed normally

@@ -1,5 +1,13 @@
 import debounce from 'lodash.debounce'
-import { action, computed, flow, makeObservable, observable, runInAction, toJS } from 'mobx'
+import {
+  action,
+  computed,
+  flow,
+  makeObservable,
+  observable,
+  runInAction,
+  toJS,
+} from 'mobx'
 import { CollectionStore } from './CollectionStore'
 import { JSONUtils } from '@/Utils/JSONUtils'
 import { StringUtils } from '@/Utils/StringUtils'
@@ -169,7 +177,7 @@ export class MinimongoStore {
           runInAction(() => {
             this.exportStatus = {
               progress,
-              message: `→ BridgeAdapter.post('minimongo-get-collections', {requestId: '${reqId}'}) · Waiting for reply… (${remaining}s)`
+              message: `→ BridgeAdapter.post('minimongo-get-collections', {requestId: '${reqId}'}) · Waiting for reply… (${remaining}s)`,
             }
           })
         }, PROGRESS_INTERVAL)
@@ -177,7 +185,10 @@ export class MinimongoStore {
         const timeout = setTimeout(() => {
           cleanup()
           runInAction(() => {
-            this.exportStatus = { progress: 0, message: `Timeout: No reply after 5s · Using cached data` }
+            this.exportStatus = {
+              progress: 0,
+              message: `Timeout: No reply after 5s · Using cached data`,
+            }
           })
           resolve()
         }, REFRESH_TIMEOUT)
@@ -186,7 +197,10 @@ export class MinimongoStore {
           if (!payload || payload.requestId !== reqId) return
           cleanup()
           runInAction(() => {
-            this.exportStatus = { progress: 0, message: `Received: minimongo-get-collections reply · Using fresh data` }
+            this.exportStatus = {
+              progress: 0,
+              message: `Received: minimongo-get-collections reply · Using fresh data`,
+            }
           })
           resolve()
         }
@@ -202,7 +216,10 @@ export class MinimongoStore {
 
         // Initialize progress
         runInAction(() => {
-          this.exportStatus = { progress: 0, message: `Sent: minimongo-get-collections (reqId: ${reqId}) · Waiting… (5s)` }
+          this.exportStatus = {
+            progress: 0,
+            message: `Sent: minimongo-get-collections (reqId: ${reqId}) · Waiting… (5s)`,
+          }
         })
       })
 

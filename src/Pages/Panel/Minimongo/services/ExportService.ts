@@ -23,29 +23,56 @@ function sleep0(): Promise<void> {
 
 function inDevToolsPanel(): boolean {
   // devtools pages use a chrome-extension:// URL but include "devtools" resources
-  return location.href.startsWith('chrome-extension://') && /devtools/i.test(document.referrer + ' ' + location.href)
+  return (
+    location.href.startsWith('chrome-extension://') &&
+    /devtools/i.test(document.referrer + ' ' + location.href)
+  )
 }
 
 async function tryAnchorDownload(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
   try {
     const a = document.createElement('a')
-    a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove()
-  } finally { URL.revokeObjectURL(url) }
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+  } finally {
+    URL.revokeObjectURL(url)
+  }
 }
 
-async function downloadViaRelay(blob: Blob, filename: string, mime: string, signal: AbortSignal, onProgress:(p:number)=>void) {
+async function downloadViaRelay(
+  blob: Blob,
+  filename: string,
+  mime: string,
+  signal: AbortSignal,
+  onProgress: (p: number) => void,
+) {
   // Compute checksum for integrity verification
   const bytes = new Uint8Array(await blob.arrayBuffer())
   const { sha256Hex } = await import('@/Utils/Hash')
   const expectedHash = await sha256Hex(bytes)
-  logger.debug('Blob hash:', expectedHash, 'size:', bytes.byteLength, 'first 4 bytes:', Array.from(bytes.slice(0, 4)))
+  logger.debug(
+    'Blob hash:',
+    expectedHash,
+    'size:',
+    bytes.byteLength,
+    'first 4 bytes:',
+    Array.from(bytes.slice(0, 4)),
+  )
 
   const relay = new RelayClient()
   await relay.sendBlob(blob, filename, mime, expectedHash, signal, onProgress)
 }
 
-export async function saveBlob(blob: Blob, filename: string, signal: AbortSignal, onProgress:(p:number)=>void) {
+export async function saveBlob(
+  blob: Blob,
+  filename: string,
+  signal: AbortSignal,
+  onProgress: (p: number) => void,
+) {
   const mime = blob.type || 'application/octet-stream'
   const inPanel = inDevToolsPanel()
   const forceRelay = flags.export.useBackgroundRelay
@@ -55,10 +82,11 @@ export async function saveBlob(blob: Blob, filename: string, signal: AbortSignal
     mime,
     inPanel,
     forceRelay,
-    willUseRelay: forceRelay || inPanel
+    willUseRelay: forceRelay || inPanel,
   })
   const mustRelay = forceRelay || inPanel
-  if (mustRelay) return downloadViaRelay(blob, filename, mime, signal, onProgress)
+  if (mustRelay)
+    return downloadViaRelay(blob, filename, mime, signal, onProgress)
   return tryAnchorDownload(blob, filename)
 }
 
@@ -112,7 +140,9 @@ export const ExportService = {
     onProgress(0.98, 'Finalizing…')
 
     const blob = writer.toBlob()
-    await saveBlob(blob, name, signal, (p) => onProgress(0.95 + 0.04 * p, 'Downloading…'))
+    await saveBlob(blob, name, signal, p =>
+      onProgress(0.95 + 0.04 * p, 'Downloading…'),
+    )
   },
 
   /**
@@ -131,7 +161,9 @@ export const ExportService = {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
     const name = `${sanitizeFilename(collectionName)}_${timestamp}.schema.json`
 
-    await saveBlob(blob, name, signal, (p) => onProgress(0.95 + 0.04 * p, 'Downloading schema…'))
+    await saveBlob(blob, name, signal, p =>
+      onProgress(0.95 + 0.04 * p, 'Downloading schema…'),
+    )
   },
 }
 
@@ -193,7 +225,9 @@ function inferArray(
   }
 
   const base = unifyTypes(elemTypes)
-  return Object.keys(base).length ? { type: 'array', items: base } : { type: 'array' }
+  return Object.keys(base).length
+    ? { type: 'array', items: base }
+    : { type: 'array' }
 }
 
 function inferObject(
@@ -242,7 +276,9 @@ function mergeObjectSchemas(s1: J, s2: J): J {
 
   const p1 = (s1.properties || {}) as Record<string, J>
   const p2 = (s2.properties || {}) as Record<string, J>
-  const keys = Array.from(new Set([...Object.keys(p1), ...Object.keys(p2)])).sort()
+  const keys = Array.from(
+    new Set([...Object.keys(p1), ...Object.keys(p2)]),
+  ).sort()
 
   out.properties = {}
   for (const k of keys) {
@@ -311,7 +347,10 @@ export function inferSchema(
     }
 
     if (i % 200 === 0) {
-      onProgress(Math.min(0.95, i / docs.length), `Inferring ${i}/${docs.length}`)
+      onProgress(
+        Math.min(0.95, i / docs.length),
+        `Inferring ${i}/${docs.length}`,
+      )
     }
   }
 

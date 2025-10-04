@@ -76,7 +76,9 @@ export const ExportDialog = observer(function ExportDialog(
       setIsFullPreview(isFull)
 
       if (!isFull) {
-        data += `\n\n... and ${docs.length - previewDocs.length} more documents (preview limited to 1MB)\n`
+        data += `\n\n... and ${
+          docs.length - previewDocs.length
+        } more documents (preview limited to 1MB)\n`
       }
     } else {
       setIsFullPreview(false) // Schema is always a summary
@@ -93,7 +95,9 @@ export const ExportDialog = observer(function ExportDialog(
 
     // Calculate actual size — sample-based estimate
     const sample = docs.slice(0, 200).map(d => JSON.stringify(d))
-    const avg = sample.length ? sample.reduce((a, s) => a + s.length, 0) / sample.length : 0
+    const avg = sample.length
+      ? sample.reduce((a, s) => a + s.length, 0) / sample.length
+      : 0
     const bytes = Math.round(avg * docs.length)
     const mb = Math.round(bytes / 1024 / 1024)
 
@@ -119,7 +123,11 @@ export const ExportDialog = observer(function ExportDialog(
 
   const start = async () => {
     abortRef.current = new AbortController()
-    await minimongoStore.exportActiveCollection(mode, abortRef.current.signal, refreshData)
+    await minimongoStore.exportActiveCollection(
+      mode,
+      abortRef.current.signal,
+      refreshData,
+    )
   }
 
   const cancel = () => {
@@ -133,8 +141,8 @@ export const ExportDialog = observer(function ExportDialog(
     <Dialog
       isOpen={props.isOpen}
       onClose={props.onClose}
-      title="Export collection"
-      portalClassName="export-dialog-portal"
+      title='Export collection'
+      portalClassName='export-dialog-portal'
     >
       <style>{`.export-dialog-portal { z-index: 999999; }`}</style>
       <div className={Classes.DIALOG_BODY}>
@@ -142,48 +150,66 @@ export const ExportDialog = observer(function ExportDialog(
           selectedValue={mode}
           onChange={e => setMode((e.target as HTMLInputElement).value as any)}
         >
-          <Radio label="Collection Data (JSON)" value="data" />
-          <Radio label="Inferred Schema (JSON Schema)" value="schema" />
+          <Radio label='Collection Data (JSON)' value='data' />
+          <Radio label='Inferred Schema (JSON Schema)' value='schema' />
         </RadioGroup>
 
         <Checkbox
           checked={refreshData}
           onChange={e => setRefreshData((e.target as HTMLInputElement).checked)}
-          label="Refresh data from page before export"
+          label='Refresh data from page before export'
           style={{ marginTop: 12 }}
         />
 
-        <Callout icon="info-sign" intent="primary" style={{ marginTop: 16 }}>
+        <Callout icon='info-sign' intent='primary' style={{ marginTop: 16 }}>
           Note: Data types are inferred from the devtools sanitized snapshot.
           Complex types like Dates may be stringified.
         </Callout>
 
-        {showPreview && !minimongoStore.isExportBusy && !minimongoStore.exportStatus.message && (
-          <div style={{ marginTop: 16 }}>
-            <h4>Preview (Size: {(previewSize / 1024).toFixed(1)} KB)</h4>
-            <TextArea
-              value={previewData}
-              readOnly
-              style={{
-                width: '100%',
-                height: '200px',
-                fontFamily: 'monospace',
-                fontSize: '11px',
-                marginTop: 8
-              }}
-            />
-            <Callout intent={mode === 'schema' ? Intent.PRIMARY : (isFullPreview ? Intent.SUCCESS : Intent.WARNING)} style={{ marginTop: 8 }}>
-              {mode === 'schema'
-                ? `Schema inferred from ${minimongoStore.activeCollectionDocuments?.filtered?.length || 0} documents`
-                : isFullPreview
-                  ? `Full preview shown. Export size: ${(previewSize / 1024).toFixed(1)} KB`
-                  : `Preview truncated at 1MB. Full export size: ${(previewSize / 1024).toFixed(1)} KB`
-              }
-            </Callout>
-          </div>
-        )}
+        {showPreview &&
+          !minimongoStore.isExportBusy &&
+          !minimongoStore.exportStatus.message && (
+            <div style={{ marginTop: 16 }}>
+              <h4>Preview (Size: {(previewSize / 1024).toFixed(1)} KB)</h4>
+              <TextArea
+                value={previewData}
+                readOnly
+                style={{
+                  width: '100%',
+                  height: '200px',
+                  fontFamily: 'monospace',
+                  fontSize: '11px',
+                  marginTop: 8,
+                }}
+              />
+              <Callout
+                intent={
+                  mode === 'schema'
+                    ? Intent.PRIMARY
+                    : isFullPreview
+                    ? Intent.SUCCESS
+                    : Intent.WARNING
+                }
+                style={{ marginTop: 8 }}
+              >
+                {mode === 'schema'
+                  ? `Schema inferred from ${
+                      minimongoStore.activeCollectionDocuments?.filtered
+                        ?.length || 0
+                    } documents`
+                  : isFullPreview
+                  ? `Full preview shown. Export size: ${(
+                      previewSize / 1024
+                    ).toFixed(1)} KB`
+                  : `Preview truncated at 1MB. Full export size: ${(
+                      previewSize / 1024
+                    ).toFixed(1)} KB`}
+              </Callout>
+            </div>
+          )}
 
-        {(minimongoStore.isExportBusy || minimongoStore.exportStatus.message) && (
+        {(minimongoStore.isExportBusy ||
+          minimongoStore.exportStatus.message) && (
           <>
             <div style={{ marginTop: 16 }}>
               <ProgressBar
@@ -208,14 +234,14 @@ export const ExportDialog = observer(function ExportDialog(
           </Button>
           {!minimongoStore.isExportBusy ? (
             <Button
-              intent="primary"
+              intent='primary'
               onClick={start}
               disabled={!minimongoStore.activeCollection}
             >
               Download
             </Button>
           ) : (
-            <Button intent="warning" onClick={cancel}>
+            <Button intent='warning' onClick={cancel}>
               Cancel
             </Button>
           )}

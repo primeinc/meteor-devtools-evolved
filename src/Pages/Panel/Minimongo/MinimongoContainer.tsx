@@ -34,7 +34,9 @@ export const MinimongoContainer: FunctionComponent<Props> = observer(
             style={style}
             key={item.document._id}
             item={item}
-            onClick={() => store.setActiveObject(item.document, item.collectionName)}
+            onClick={() =>
+              store.setActiveObject(item.document, item.collectionName)
+            }
             onCollectionClick={() =>
               store.minimongoStore.setActiveCollection(item.collectionName)
             }

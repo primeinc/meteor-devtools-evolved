@@ -22,11 +22,18 @@ export function generateSecureRandomString(length = 16): string {
  * @returns UUID string
  */
 export function generateSecureUUID(): string {
-  if ((globalThis.crypto as any)?.randomUUID) {
+  // Type-safe check for crypto.randomUUID availability
+  // Use runtime check since TypeScript types may not include it
+  if (
+    typeof globalThis.crypto !== 'undefined' &&
+    'randomUUID' in globalThis.crypto &&
+    typeof (globalThis.crypto as any).randomUUID === 'function'
+  ) {
     return (globalThis.crypto as any).randomUUID()
   }
-  // Fallback: generate secure random hex string
-  return `${generateSecureRandomString(8)}-${generateSecureRandomString(4)}-${generateSecureRandomString(4)}-${generateSecureRandomString(4)}-${generateSecureRandomString(12)}`
+  // Fallback: generate secure random hex string in UUID format (8-4-4-4-12 hex chars)
+  // Each byte generates 2 hex chars, so divide by 2
+  return `${generateSecureRandomString(4)}-${generateSecureRandomString(2)}-${generateSecureRandomString(2)}-${generateSecureRandomString(2)}-${generateSecureRandomString(6)}`
 }
 
 /**

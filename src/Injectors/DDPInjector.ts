@@ -1,8 +1,9 @@
 import { sendLogMessage } from '@/Browser/Inject'
+import { generateSecureRandomString } from '@/Utils/SecureId'
 
 type MessageCallback = (message: DDPLog) => void
 
-const generateId = () => (Date.now() + Math.random()).toString(36)
+const generateId = () => `msg-${generateSecureRandomString(8)}`
 
 const injectOutboundInterceptor = (callback: MessageCallback) => {
   const send = Meteor.connection._stream.send

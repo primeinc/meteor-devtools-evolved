@@ -1,5 +1,6 @@
 import browser from 'webextension-polyfill'
 import { createLogger } from '@/Utils/Logger'
+import { generateAuthToken } from '@/Utils/SecureId'
 
 const logger = createLogger('Background')
 const exportLogger = createLogger('Export')
@@ -50,6 +51,19 @@ const INFLIGHT_DECREMENT_DELAY_MS = 10
 const MAX_DATA_URL_SIZE = 4 * 1024 * 1024 // 4MB
 const URL_REVOKE_DELAY_MS = 10_000 // 10 seconds
 const BASE64_CHUNK_SIZE = 8192 // 8KB chunks for efficient string building
+const SAFE_CHARCODE_CHUNK = 8192 // Safe chunk size for String.fromCharCode.apply to prevent stack overflow
+
+// Helper: safely convert Uint8Array to binary string without stack overflow
+function bytesToBinaryString(bytes: Uint8Array): string {
+  const chunks: string[] = []
+  for (let i = 0; i < bytes.length; i += SAFE_CHARCODE_CHUNK) {
+    const end = Math.min(i + SAFE_CHARCODE_CHUNK, bytes.length)
+    const chunk = bytes.subarray(i, end)
+    // Convert to regular array for apply (subarray doesn't work directly)
+    chunks.push(String.fromCharCode(...chunk))
+  }
+  return chunks.join('')
+}
 
 // Helper: mark transfer as failed and schedule cleanup
 function markFailed(id: string, reason: string, port: chrome.runtime.Port) {
@@ -118,15 +132,9 @@ async function downloadViaOffscreen(
   }
 
   // Convert blob to base64 for message passing
-  // Use chunked string building for better performance (avoids O(n²) concatenation)
   const buf = await blob.arrayBuffer()
   const bytes = new Uint8Array(buf)
-  const chunks: string[] = []
-  for (let i = 0; i < bytes.length; i += BASE64_CHUNK_SIZE) {
-    const chunk = bytes.subarray(i, i + BASE64_CHUNK_SIZE)
-    chunks.push(String.fromCharCode.apply(null, Array.from(chunk)))
-  }
-  const binary = chunks.join('')
+  const binary = bytesToBinaryString(bytes)
   const base64 = btoa(binary)
 
   return new Promise((resolve, reject) => {
@@ -180,9 +188,7 @@ const panelListener = () => {
           })
 
         if (type === 'EXPORT_DOWNLOAD_BEGIN') {
-          const token =
-            payload.token ||
-            `tok-${Date.now()}-${Math.random().toString(36).slice(2)}`
+          const token = payload.token || generateAuthToken()
           const clientId = payload.clientInstanceId || senderId
           exportLogger.info(
             'BEGIN received:',
@@ -346,9 +352,18 @@ const panelListener = () => {
               chrome.downloads.download(
                 { url, filename, saveAs: false },
                 id => {
-                  done(id)
                   // Revoke URL after delay to allow download to complete
                   setTimeout(() => URL.revokeObjectURL(url), URL_REVOKE_DELAY_MS)
+                  // Check for download errors
+                  if (chrome.runtime.lastError) {
+                    exportLogger.error(
+                      'Download failed:',
+                      chrome.runtime.lastError,
+                    )
+                    markFailed(payload.id, 'DOWNLOAD_ERROR', port)
+                    return
+                  }
+                  done(id)
                 },
               )
             } else {
@@ -368,19 +383,24 @@ const panelListener = () => {
                 // Only use data URL for small files
                 if (blob.size < MAX_DATA_URL_SIZE) {
                   const bytes = new Uint8Array(await blob.arrayBuffer())
-                  // Use chunked string building for performance
-                  const chunks: string[] = []
-                  for (let i = 0; i < bytes.length; i += BASE64_CHUNK_SIZE) {
-                    const chunk = bytes.subarray(i, i + BASE64_CHUNK_SIZE)
-                    chunks.push(String.fromCharCode.apply(null, Array.from(chunk)))
-                  }
-                  const binary = chunks.join('')
+                  const binary = bytesToBinaryString(bytes)
                   const dataUrl = `data:${
                     t.mime || 'application/octet-stream'
                   };base64,${btoa(binary)}`
                   chrome.downloads.download(
                     { url: dataUrl, filename, saveAs: false },
-                    done,
+                    id => {
+                      // Check for download errors
+                      if (chrome.runtime.lastError) {
+                        exportLogger.error(
+                          'Data URL download failed:',
+                          chrome.runtime.lastError,
+                        )
+                        markFailed(payload.id, 'DOWNLOAD_ERROR', port)
+                        return
+                      }
+                      done(id)
+                    },
                   )
                 } else {
                   markFailed(payload.id, 'FILE_TOO_LARGE_FOR_DATAURL', port)

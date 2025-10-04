@@ -12,6 +12,7 @@ const CHUNK = 1 * 1024 * 1024
 const ACK_TIMEOUT_MS = 5000
 const BACKPRESSURE_BASE_DELAY_MS = 100
 const BACKPRESSURE_MAX_DELAY_MS = 2000
+const MAX_BACKPRESSURE_RETRIES = 10 // Cap to prevent Math.pow overflow (2^10 = 1024ms base)
 
 export class RelayClient {
   private port: chrome.runtime.Port
@@ -48,7 +49,10 @@ export class RelayClient {
         if (m?.type === 'EXPORT_BACKPRESSURE') {
           clearTimeout(t)
           off()
-          const retryCount = backpressureRetry ?? 0
+          const retryCount = Math.min(
+            backpressureRetry ?? 0,
+            MAX_BACKPRESSURE_RETRIES,
+          )
           const delay = Math.min(
             BACKPRESSURE_BASE_DELAY_MS * Math.pow(2, retryCount),
             BACKPRESSURE_MAX_DELAY_MS,

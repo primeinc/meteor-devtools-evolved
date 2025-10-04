@@ -13,6 +13,7 @@ export namespace StringUtils {
 
   /**
    * Five levels of brightness from 1 to 5.
+   * Uses cryptographically secure random for consistency across codebase.
    *
    * @param brightness
    */
@@ -24,8 +25,12 @@ export namespace StringUtils {
 
     const variance = 255 / 5
 
-    const getByte = () =>
-      Math.round(variance * (brightness - 1) + Math.random() * variance)
+    const getByte = () => {
+      const arr = new Uint8Array(1)
+      globalThis.crypto.getRandomValues(arr)
+      const randomValue = arr[0] / 255 // Convert to 0-1 range
+      return Math.round(variance * (brightness - 1) + randomValue * variance)
+    }
 
     const rgb = [0, 0, 0].map(getByte).join(',')
 

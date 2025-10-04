@@ -1,0 +1,50 @@
+[
+  {
+    "path": "src/Browser/Offscreen.ts",
+    "line": 18,
+    "body": "The download callback doesn't handle potential errors from chrome.downloads.download. Should check chrome.runtime.lastError and provide proper error handling.\n```suggestion\n    chrome.downloads.download({ url, filename, saveAs: false }, id => {\n      if (chrome.runtime.lastError) {\n        console.error('[Offscreen] download failed', chrome.runtime.lastError);\n        chrome.runtime.sendMessage({\n          type: 'OFFSCREEN_DOWNLOAD_ERROR',\n          payload: { message: chrome.runtime.lastError.message },\n        });\n        URL.revokeObjectURL(url);\n        return;\n      }\n```",
+    "outdated": false
+  },
+  {
+    "path": "src/Utils/SecureId.ts",
+    "line": 32,
+    "body": "[nitpick] The complex runtime check for crypto.randomUUID could be simplified. Modern browsers widely support crypto.randomUUID, and the fallback implementation is already robust. Consider using a simpler check like `crypto.randomUUID?.()` with optional chaining.\n```suggestion\n  const uuid = globalThis.crypto?.randomUUID?.();\n  if (uuid) {\n    return uuid;\n```",
+    "outdated": false
+  },
+  {
+    "path": "src/Browser/Background.ts",
+    "line": 122,
+    "body": "[nitpick] The function throws a generic error when offscreen API is unavailable, but the caller expects this and falls back to data URL. Consider returning a boolean success indicator or using a more specific error type that the caller can distinguish from actual offscreen operation failures.",
+    "outdated": false
+  },
+  {
+    "path": "src/Browser/Background.ts",
+    "line": 230,
+    "body": "[nitpick] While ignoring invalid tokens prevents DoS, it also makes debugging legitimate authentication issues more difficult. Consider implementing rate limiting per sender to allow some failed attempts while preventing abuse, and returning different error types for debugging vs. security scenarios.",
+    "outdated": false
+  },
+  {
+    "path": "src/Pages/Panel/Minimongo/services/RelayClient.ts",
+    "line": 103,
+    "body": "![medium](https://www.gstatic.com/codereviewagent/medium-priority.svg)\n\nThe `waitAck` function is typed to return `Promise<void>` and resolves with no value. However, the call site in `sendBlob` (line 131) assigns the result of `reqAck` to `beginResp` and logs it (line 148), expecting to see the acknowledgment payload. This currently results in `beginResp` always being `undefined`.\n\nTo fix this, `waitAck` should resolve with the message payload (`resolve(m.payload)`) and its return type should be updated to `Promise<any>`. Consequently, `reqAck` should be updated to return this payload. This will ensure the log at line 148 works as intended and correctly displays the response from the background script.\n\n```typescript\n  private waitAck(match: (m: any) => boolean, backpressureRetry?: number) {\n    return new Promise<any>((resolve, reject) => {\n      const t = setTimeout(() => {\n        off()\n        reject(new Error('ACK timeout'))\n      }, ACK_TIMEOUT_MS)\n      const on = (m: any) => {\n        // Check for EXPORT_FAILED first\n        if (m?.type === 'EXPORT_FAILED') {\n          clearTimeout(t)\n          off()\n          reject(\n            new Error(`Export failed: ${m.payload?.reason || 'Unknown error'}`),\n          )\n          return\n        }\n        // Handle backpressure with exponential backoff\n        if (m?.type === 'EXPORT_BACKPRESSURE') {\n          clearTimeout(t)\n          off()\n          const retryCount = Math.min(\n            backpressureRetry ?? 0,\n            MAX_BACKPRESSURE_RETRIES,\n          )\n          const delay = Math.min(\n            BACKPRESSURE_BASE_DELAY_MS * Math.pow(2, retryCount),\n            BACKPRESSURE_MAX_DELAY_MS,\n          )\n          logger.debug(\n            `Backpressure received, retrying in ${delay}ms (attempt ${retryCount + 1})`,\n          )\n          reject({ isBackpressure: true, retryCount, delay })\n          return\n        }\n        if (match(m)) {\n          clearTimeout(t)\n          off()\n          resolve(m.payload)\n        }\n      }\n      const off = () => this.port.onMessage.removeListener(on)\n      this.port.onMessage.addListener(on)\n    })\n  }\n\n  private async reqAck(msg: any, matcher: (m: any) => boolean) {\n    let backpressureRetry = 0\n    for (let attempt = 0; attempt <= MAX_RETRY; attempt++) {\n      this.port.postMessage(msg)\n      try {\n        const payload = await this.waitAck(matcher, backpressureRetry)\n        return payload\n      } catch (e: any) {\n        // Handle backpressure with exponential backoff\n        if (e?.isBackpressure) {\n          await new Promise(resolve => setTimeout(resolve, e.delay))\n          backpressureRetry = e.retryCount + 1\n          // Don't count backpressure as a retry attempt\n          attempt--\n          continue\n        }\n        if (attempt === MAX_RETRY) throw e\n      }\n    }\n  }\n```",
+    "outdated": false
+  },
+  {
+    "path": "src/Browser/Background.ts",
+    "line": 255,
+    "body": "The backpressure logic should log when it's triggered to help with debugging transfer flow issues.",
+    "outdated": false
+  },
+  {
+    "path": "src/Pages/Panel/Minimongo/services/RelayClient.ts",
+    "line": 25,
+    "body": "Consider using bit shift operation `1 << cappedRetryCount` instead of `Math.pow(2, cappedRetryCount)` for better performance in exponential backoff calculation.\n```suggestion\n    BACKPRESSURE_BASE_DELAY_MS * (1 << cappedRetryCount),\n```",
+    "outdated": false
+  },
+  {
+    "path": "src/Browser/Background.ts",
+    "line": 66,
+    "body": "![medium](https://www.gstatic.com/codereviewagent/medium-priority.svg)\n\nThe `bytesToBinaryString` function can be significantly simplified and made more performant by using the `TextDecoder` API. The current implementation with `String.fromCharCode.apply` and an unnecessary `Array.from` conversion is less efficient than the browser's built-in, highly optimized decoder.\n\nUsing `new TextDecoder('latin1').decode(bytes)` provides a direct, one-to-one mapping of bytes to a binary string, which is exactly what `btoa` requires. This change would also make the `SAFE_CHARCODE_CHUNK` constant obsolete.\n\n```typescript\nfunction bytesToBinaryString(bytes: Uint8Array): string {\n  // Using TextDecoder is more modern and performant for converting Uint8Array to a binary string.\n  // The 'latin1' encoding ensures a 1:1 mapping of byte values to character codes, which is what btoa expects.\n  return new TextDecoder('latin1').decode(bytes)\n}\n```",
+    "outdated": false
+  }
+]

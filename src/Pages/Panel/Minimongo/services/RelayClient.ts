@@ -22,7 +22,7 @@ const MAX_BACKPRESSURE_RETRIES = 10 // Cap to prevent Math.pow overflow (2^10 = 
 function calculateBackoffDelay(retryCount: number): number {
   const cappedRetryCount = Math.min(retryCount, MAX_BACKPRESSURE_RETRIES)
   return Math.min(
-    BACKPRESSURE_BASE_DELAY_MS * Math.pow(2, cappedRetryCount),
+    BACKPRESSURE_BASE_DELAY_MS * (1 << cappedRetryCount), // Bit shift for 2^n
     BACKPRESSURE_MAX_DELAY_MS,
   )
 }

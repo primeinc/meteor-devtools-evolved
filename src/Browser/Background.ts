@@ -36,8 +36,20 @@ type Transfer = {
 }
 const transfers = new Map<string, Transfer>()
 const downloadIdToFilename = new Map<number, string>()
+
+// Transfer lifecycle constants
 const TTL_MS = 120_000 // 2 minutes
+const FAILED_TRANSFER_CLEANUP_MS = 30_000 // 30 seconds
+const TIMEOUT_TRANSFER_CLEANUP_MS = 10_000 // 10 seconds
+
+// Flow control constants
 const MAX_INFLIGHT = 8
+const INFLIGHT_DECREMENT_DELAY_MS = 10
+
+// Download fallback constants
+const MAX_DATA_URL_SIZE = 4 * 1024 * 1024 // 4MB
+const URL_REVOKE_DELAY_MS = 10_000 // 10 seconds
+const BASE64_CHUNK_SIZE = 8192 // 8KB chunks for efficient string building
 
 // Helper: mark transfer as failed and schedule cleanup
 function markFailed(id: string, reason: string, port: chrome.runtime.Port) {
@@ -52,11 +64,20 @@ function markFailed(id: string, reason: string, port: chrome.runtime.Port) {
   t.chunks = [] // Free memory
   if (t.expiry) clearTimeout(t.expiry)
   port.postMessage({ type: 'EXPORT_FAILED', payload: { id, reason } })
-  // Schedule cleanup after 30s for forensics
+  // Schedule cleanup for forensics
   t.expiry = setTimeout(() => {
     transfers.delete(id)
     exportLogger.debug('Cleaned up failed transfer:', id)
-  }, 30_000)
+  }, FAILED_TRANSFER_CLEANUP_MS)
+}
+
+// Helper: log auth error and ignore (don't fail transfer)
+// This prevents DoS attacks where invalid tokens/senders could kill legitimate exports
+function logAuthError(id: string, reason: string, payload: any) {
+  exportLogger.warn(`Auth error for ${id}, ignoring:`, reason, {
+    receivedToken: payload.token,
+    receivedSender: payload.clientInstanceId,
+  })
 }
 
 // Helper: schedule/refresh TTL for a transfer
@@ -70,7 +91,7 @@ function scheduleTTL(id: string) {
       t.state = 'FAILED'
       t.failureReason = 'TIMEOUT'
       t.chunks = []
-      setTimeout(() => transfers.delete(id), 10_000)
+      setTimeout(() => transfers.delete(id), TIMEOUT_TRANSFER_CLEANUP_MS)
     }
   }, TTL_MS)
 }
@@ -97,10 +118,15 @@ async function downloadViaOffscreen(
   }
 
   // Convert blob to base64 for message passing
+  // Use chunked string building for better performance (avoids O(n²) concatenation)
   const buf = await blob.arrayBuffer()
   const bytes = new Uint8Array(buf)
-  let binary = ''
-  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
+  const chunks: string[] = []
+  for (let i = 0; i < bytes.length; i += BASE64_CHUNK_SIZE) {
+    const chunk = bytes.subarray(i, i + BASE64_CHUNK_SIZE)
+    chunks.push(String.fromCharCode.apply(null, Array.from(chunk)))
+  }
+  const binary = chunks.join('')
   const base64 = btoa(binary)
 
   return new Promise((resolve, reject) => {
@@ -191,13 +217,18 @@ const panelListener = () => {
             exportLogger.error('No transfer found for chunk:', payload.id)
             return
           }
-          if (t.token !== payload.token)
-            return markFailed(payload.id, 'INVALID_TOKEN', port)
+          // Ignore invalid tokens/senders instead of failing (prevents DoS)
+          if (t.token !== payload.token) {
+            logAuthError(payload.id, 'INVALID_TOKEN', payload)
+            return
+          }
           if (
             t.senderId !== senderId &&
             t.senderId !== payload.clientInstanceId
-          )
-            return markFailed(payload.id, 'INVALID_SENDER', port)
+          ) {
+            logAuthError(payload.id, 'INVALID_SENDER', payload)
+            return
+          }
           if (
             t.state === 'ABORTED' ||
             t.state === 'FAILED' ||
@@ -229,7 +260,7 @@ const panelListener = () => {
           setTimeout(() => {
             if (transfers.has(payload.id))
               t.inflight = Math.max(0, t.inflight - 1)
-          }, 10)
+          }, INFLIGHT_DECREMENT_DELAY_MS)
           return
         }
 
@@ -239,13 +270,18 @@ const panelListener = () => {
             exportLogger.error('No transfer found for END:', payload.id)
             return markFailed(payload.id, 'TRANSFER_NOT_FOUND', port)
           }
-          if (t.token !== payload.token)
-            return markFailed(payload.id, 'INVALID_TOKEN', port)
+          // Ignore invalid tokens/senders instead of failing (prevents DoS)
+          if (t.token !== payload.token) {
+            logAuthError(payload.id, 'INVALID_TOKEN', payload)
+            return
+          }
           if (
             t.senderId !== senderId &&
             t.senderId !== payload.clientInstanceId
-          )
-            return markFailed(payload.id, 'INVALID_SENDER', port)
+          ) {
+            logAuthError(payload.id, 'INVALID_SENDER', payload)
+            return
+          }
           if (t.state !== 'IN_PROGRESS' && t.state !== 'INIT')
             return markFailed(payload.id, `BAD_STATE_${t.state}`, port)
 
@@ -311,8 +347,8 @@ const panelListener = () => {
                 { url, filename, saveAs: false },
                 id => {
                   done(id)
-                  // revoke a bit later
-                  setTimeout(() => URL.revokeObjectURL(url), 10_000)
+                  // Revoke URL after delay to allow download to complete
+                  setTimeout(() => URL.revokeObjectURL(url), URL_REVOKE_DELAY_MS)
                 },
               )
             } else {
@@ -329,12 +365,16 @@ const panelListener = () => {
                   'Offscreen download failed, trying data URL:',
                   err,
                 )
-                // Only use data URL for small files (< 4MB)
-                if (blob.size < 4 * 1024 * 1024) {
+                // Only use data URL for small files
+                if (blob.size < MAX_DATA_URL_SIZE) {
                   const bytes = new Uint8Array(await blob.arrayBuffer())
-                  let binary = ''
-                  for (let i = 0; i < bytes.length; i++)
-                    binary += String.fromCharCode(bytes[i])
+                  // Use chunked string building for performance
+                  const chunks: string[] = []
+                  for (let i = 0; i < bytes.length; i += BASE64_CHUNK_SIZE) {
+                    const chunk = bytes.subarray(i, i + BASE64_CHUNK_SIZE)
+                    chunks.push(String.fromCharCode.apply(null, Array.from(chunk)))
+                  }
+                  const binary = chunks.join('')
                   const dataUrl = `data:${
                     t.mime || 'application/octet-stream'
                   };base64,${btoa(binary)}`
@@ -357,13 +397,18 @@ const panelListener = () => {
             ack({ type: 'ABORT' })
             return
           }
-          if (t.token !== payload.token)
-            return markFailed(payload.id, 'INVALID_ABORT', port)
+          // Ignore invalid abort requests (prevents DoS)
+          if (t.token !== payload.token) {
+            logAuthError(payload.id, 'INVALID_ABORT_TOKEN', payload)
+            return
+          }
           if (
             t.senderId !== senderId &&
             t.senderId !== payload.clientInstanceId
-          )
-            return markFailed(payload.id, 'INVALID_ABORT', port)
+          ) {
+            logAuthError(payload.id, 'INVALID_ABORT_SENDER', payload)
+            return
+          }
           exportLogger.info('ABORT received for transfer:', payload.id)
           t.state = 'ABORTED'
           t.chunks = []

@@ -1,4 +1,6 @@
 // Runs in an offscreen document (has DOM + URL APIs)
+const URL_REVOKE_DELAY_MS = 10_000 // 10 seconds
+
 chrome.runtime.onMessage.addListener(async (msg, _sender, _sendResponse) => {
   if (msg?.type !== 'OFFSCREEN_DOWNLOAD') return
   try {
@@ -7,14 +9,14 @@ chrome.runtime.onMessage.addListener(async (msg, _sender, _sendResponse) => {
       mime: string
       base64: string
     }
-    // Convert base64 -> Uint8Array
-    const binary = atob(base64)
-    const bytes = new Uint8Array(binary.length)
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-    const blob = new Blob([bytes], { type: mime || 'application/octet-stream' })
+    // Use fetch API for efficient base64 -> Blob conversion
+    // This offloads decoding to browser's optimized implementation
+    const blob = await (
+      await fetch(`data:${mime || 'application/octet-stream'};base64,${base64}`)
+    ).blob()
     const url = URL.createObjectURL(blob)
     chrome.downloads.download({ url, filename, saveAs: false }, id => {
-      setTimeout(() => URL.revokeObjectURL(url), 10_000)
+      setTimeout(() => URL.revokeObjectURL(url), URL_REVOKE_DELAY_MS)
       chrome.runtime.sendMessage({
         type: 'OFFSCREEN_DOWNLOAD_DONE',
         payload: { id },

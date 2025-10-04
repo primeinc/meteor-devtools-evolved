@@ -1,10 +1,17 @@
 import { createLogger } from '@/Utils/Logger'
+import {
+  generateTransferId,
+  generateAuthToken,
+  generateClientInstanceId,
+} from '@/Utils/SecureId'
 
 const logger = createLogger('RelayClient')
 
 const MAX_RETRY = 3
 const CHUNK = 1 * 1024 * 1024
 const ACK_TIMEOUT_MS = 5000
+const BACKPRESSURE_BASE_DELAY_MS = 100
+const BACKPRESSURE_MAX_DELAY_MS = 2000
 
 export class RelayClient {
   private port: chrome.runtime.Port
@@ -13,17 +20,15 @@ export class RelayClient {
 
   constructor() {
     this.port = chrome.runtime.connect({ name: 'export-relay' })
-    // Generate a unique client instance ID
-    this.clientInstanceId =
-      (globalThis.crypto as any)?.randomUUID?.() ??
-      `client-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    // Generate a cryptographically secure client instance ID
+    this.clientInstanceId = generateClientInstanceId()
     logger.debug(
       'Connected to background via port, clientInstanceId:',
       this.clientInstanceId,
     )
   }
 
-  private waitAck(match: (m: any) => boolean) {
+  private waitAck(match: (m: any) => boolean, backpressureRetry?: number) {
     return new Promise<void>((resolve, reject) => {
       const t = setTimeout(() => {
         off()
@@ -39,6 +44,21 @@ export class RelayClient {
           )
           return
         }
+        // Handle backpressure with exponential backoff
+        if (m?.type === 'EXPORT_BACKPRESSURE') {
+          clearTimeout(t)
+          off()
+          const retryCount = backpressureRetry ?? 0
+          const delay = Math.min(
+            BACKPRESSURE_BASE_DELAY_MS * Math.pow(2, retryCount),
+            BACKPRESSURE_MAX_DELAY_MS,
+          )
+          logger.debug(
+            `Backpressure received, retrying in ${delay}ms (attempt ${retryCount + 1})`,
+          )
+          reject({ isBackpressure: true, retryCount, delay })
+          return
+        }
         if (match(m)) {
           clearTimeout(t)
           off()
@@ -51,12 +71,21 @@ export class RelayClient {
   }
 
   private async reqAck(msg: any, matcher: (m: any) => boolean) {
+    let backpressureRetry = 0
     for (let attempt = 0; attempt <= MAX_RETRY; attempt++) {
       this.port.postMessage(msg)
       try {
-        await this.waitAck(matcher)
+        await this.waitAck(matcher, backpressureRetry)
         return
-      } catch (e) {
+      } catch (e: any) {
+        // Handle backpressure with exponential backoff
+        if (e?.isBackpressure) {
+          await new Promise(resolve => setTimeout(resolve, e.delay))
+          backpressureRetry = e.retryCount + 1
+          // Don't count backpressure as a retry attempt
+          attempt--
+          continue
+        }
         if (attempt === MAX_RETRY) throw e
       }
     }
@@ -70,10 +99,9 @@ export class RelayClient {
     signal: AbortSignal,
     onProgress: (p: number) => void,
   ) {
-    const id =
-      (globalThis.crypto as any)?.randomUUID?.() ??
-      `dl-${Date.now()}-${Math.random().toString(36).slice(2)}`
-    const token = `tok-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    // Generate cryptographically secure ID and token
+    const id = generateTransferId()
+    const token = generateAuthToken()
     logger.info('Starting transfer:', {
       id,
       filename,

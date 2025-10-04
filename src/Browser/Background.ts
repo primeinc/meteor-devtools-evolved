@@ -50,8 +50,8 @@ const INFLIGHT_DECREMENT_DELAY_MS = 10
 // Download fallback constants
 const MAX_DATA_URL_SIZE = 4 * 1024 * 1024 // 4MB
 const URL_REVOKE_DELAY_MS = 10_000 // 10 seconds
-const BASE64_CHUNK_SIZE = 8192 // 8KB chunks for efficient string building
 const SAFE_CHARCODE_CHUNK = 8192 // Safe chunk size for String.fromCharCode.apply to prevent stack overflow
+const OFFSCREEN_DOWNLOAD_TIMEOUT_MS = 30_000 // 30 seconds timeout for offscreen download
 
 // Helper: safely convert Uint8Array to binary string without stack overflow
 function bytesToBinaryString(bytes: Uint8Array): string {
@@ -59,8 +59,8 @@ function bytesToBinaryString(bytes: Uint8Array): string {
   for (let i = 0; i < bytes.length; i += SAFE_CHARCODE_CHUNK) {
     const end = Math.min(i + SAFE_CHARCODE_CHUNK, bytes.length)
     const chunk = bytes.subarray(i, end)
-    // Convert to regular array for apply (subarray doesn't work directly)
-    chunks.push(String.fromCharCode(...chunk))
+    // Use apply with Array.from to avoid spread operator stack overflow
+    chunks.push(String.fromCharCode.apply(null, Array.from(chunk)))
   }
   return chunks.join('')
 }
@@ -156,7 +156,7 @@ async function downloadViaOffscreen(
     setTimeout(() => {
       chrome.runtime.onMessage.removeListener(listener)
       reject(new Error('Offscreen download timeout'))
-    }, 30_000)
+    }, OFFSCREEN_DOWNLOAD_TIMEOUT_MS)
   })
 }
 

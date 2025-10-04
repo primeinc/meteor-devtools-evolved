@@ -39,11 +39,26 @@ export const ExportDialog = observer(function ExportDialog(
   }, [])
 
   const generatePreview = async () => {
-    if (!minimongoStore.activeCollection) return
+    // Gather documents from active collection or all collections
+    let docs: any[]
+    let collectionName: string
 
-    // Use the same data source as export function
-    const wrappers = minimongoStore.activeCollectionDocuments?.filtered || []
-    const docs = wrappers.map((w: any) => w.document)
+    if (minimongoStore.activeCollection) {
+      // Single collection export
+      const wrappers = minimongoStore.activeCollectionDocuments?.filtered || []
+      docs = wrappers.map((w: any) => w.document)
+      collectionName = minimongoStore.activeCollection
+    } else {
+      // All collections export
+      const allDocs: any[] = []
+      Object.entries(minimongoStore.collections).forEach(([name, wrappers]: [string, any[]]) => {
+        wrappers.forEach((w: any) => {
+          allDocs.push({ _collection: name, ...w.document })
+        })
+      })
+      docs = allDocs
+      collectionName = 'all-collections'
+    }
     if (docs.length === 0) {
       setPreviewData('[]')
       setPreviewSize(2)
@@ -133,7 +148,7 @@ export const ExportDialog = observer(function ExportDialog(
     <Dialog
       isOpen={props.isOpen}
       onClose={props.onClose}
-      title="Export collection"
+      title={minimongoStore.activeCollection ? `Export ${minimongoStore.activeCollection}` : "Export All Collections"}
       portalClassName="export-dialog-portal"
     >
       <style>{`.export-dialog-portal { z-index: 999999; }`}</style>
@@ -174,7 +189,9 @@ export const ExportDialog = observer(function ExportDialog(
             />
             <Callout intent={mode === 'schema' ? Intent.PRIMARY : (isFullPreview ? Intent.SUCCESS : Intent.WARNING)} style={{ marginTop: 8 }}>
               {mode === 'schema'
-                ? `Schema inferred from ${minimongoStore.activeCollectionDocuments?.filtered?.length || 0} documents`
+                ? minimongoStore.activeCollection
+                  ? `Schema inferred from ${minimongoStore.activeCollectionDocuments?.filtered?.length || 0} documents`
+                  : `Schema inferred from ${minimongoStore.totalDocuments} documents across ${minimongoStore.collectionNames.length} collections`
                 : isFullPreview
                   ? `Full preview shown. Export size: ${(previewSize / 1024).toFixed(1)} KB`
                   : `Preview truncated at 1MB. Full export size: ${(previewSize / 1024).toFixed(1)} KB`
@@ -210,7 +227,7 @@ export const ExportDialog = observer(function ExportDialog(
             <Button
               intent="primary"
               onClick={start}
-              disabled={!minimongoStore.activeCollection}
+              disabled={!minimongoStore.collectionNames.length}
             >
               Download
             </Button>

@@ -3,7 +3,7 @@
 **Status:** Design Document
 **Version:** 1.0
 **Last Updated:** 2025-10-03
-**Author:** Design collaboration with Claude Code
+**Author:** will@4pp.dev
 
 ---
 

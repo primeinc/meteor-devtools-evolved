@@ -9,6 +9,9 @@ import { isNumber } from 'lodash'
 import { useAnalytics } from '@/Utils/Hooks/useAnalytics'
 import { openTab } from '@/Utils/BackgroundEvents'
 
+// Repository data fetch timing
+const REPO_DATA_FETCH_DELAY_MS = 2000 // Delay repository data fetch after component mount
+
 export const Navigation: FunctionComponent = observer(() => {
   const panelStore = usePanelStore()
   const analytics = useAnalytics()
@@ -16,7 +19,7 @@ export const Navigation: FunctionComponent = observer(() => {
   useEffect(() => {
     setTimeout(() => {
       panelStore.settingStore.updateRepositoryData()
-    }, 2000)
+    }, REPO_DATA_FETCH_DELAY_MS)
   }, [])
 
   const { repositoryData } = panelStore.settingStore

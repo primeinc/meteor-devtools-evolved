@@ -16,16 +16,18 @@ chrome.runtime.onMessage.addListener(async (msg, _sender, _sendResponse) => {
     ).blob()
     const url = URL.createObjectURL(blob)
     chrome.downloads.download({ url, filename, saveAs: false }, id => {
-      setTimeout(() => URL.revokeObjectURL(url), URL_REVOKE_DELAY_MS)
-      // Check for download errors
+      // Check for download errors BEFORE scheduling URL revocation
       if (chrome.runtime.lastError) {
         console.error('[Offscreen] download error:', chrome.runtime.lastError)
         chrome.runtime.sendMessage({
           type: 'OFFSCREEN_DOWNLOAD_ERROR',
           payload: { message: chrome.runtime.lastError.message },
         })
+        URL.revokeObjectURL(url)
         return
       }
+      // Success: schedule delayed URL revocation and notify
+      setTimeout(() => URL.revokeObjectURL(url), URL_REVOKE_DELAY_MS)
       chrome.runtime.sendMessage({
         type: 'OFFSCREEN_DOWNLOAD_DONE',
         payload: { id },

@@ -139,7 +139,7 @@ export class MinimongoStore {
   }
 
   /**
-   * Export active collection with optional data refresh
+   * Export active collection (or all collections if none selected) with optional data refresh
    */
   exportActiveCollection = flow(function* (
     this: MinimongoStore,
@@ -147,10 +147,12 @@ export class MinimongoStore {
     signal: AbortSignal,
     refreshData: boolean = true,
   ) {
-    if (!this.activeCollection) return
+    // Allow export when no collection selected (exports all collections)
+    if (!this.activeCollection && !this.collectionNames.length) return
 
     this.isExportBusy = true
-    logger.info('Export starting with refreshData:', refreshData)
+    const isExportingAll = !this.activeCollection
+    logger.info('Export starting with refreshData:', refreshData, 'isExportingAll:', isExportingAll)
 
     if (refreshData) {
       const reqId = `exp-${this.exportSeq++}`
@@ -219,12 +221,29 @@ export class MinimongoStore {
     }
 
     // Snapshot and unwrap documents
-    const wrappers = toJS(this.activeCollectionDocuments.filtered)
-    const documents = wrappers.map((w: any) => w.document)
+    let documents: any[]
+    let collectionName: string
+
+    if (this.activeCollection) {
+      // Single collection export
+      const wrappers = toJS(this.activeCollectionDocuments.filtered)
+      documents = wrappers.map((w: any) => w.document)
+      collectionName = this.activeCollection
+    } else {
+      // All collections export - include _collection field to identify source
+      const allDocs: any[] = []
+      Object.entries(toJS(this.collections)).forEach(([name, wrappers]: [string, any[]]) => {
+        wrappers.forEach((w: any) => {
+          allDocs.push({ _collection: name, ...w.document })
+        })
+      })
+      documents = allDocs
+      collectionName = 'all-collections'
+    }
 
     if (!documents?.length) {
       this.isExportBusy = false
-      this.exportStatus = { progress: 1, message: 'Collection is empty' }
+      this.exportStatus = { progress: 1, message: isExportingAll ? 'No collections to export' : 'Collection is empty' }
       return
     }
 
@@ -238,14 +257,14 @@ export class MinimongoStore {
     try {
       if (exportType === 'data') {
         yield ExportService.exportData(
-          this.activeCollection,
+          collectionName,
           documents,
           onProgress,
           signal,
         )
       } else {
         yield ExportService.exportSchema(
-          this.activeCollection,
+          collectionName,
           documents,
           onProgress,
           signal,

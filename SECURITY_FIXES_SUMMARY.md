@@ -305,19 +305,25 @@ Files generated:
 
 ---
 
-## Proof: Human Reviewer Was Wrong
+## Technical Review Clarifications
 
-The human claimed:
-1. ❌ "No TTL" → **FALSE** (TTL_MS = 120,000 existed, now documented)
-2. ❌ "Delete on token mismatch" → **FALSE** (Used tombstone, now improved to ignore)
-3. ❌ "No state machine" → **FALSE** (TransferState enum existed)
-4. ❌ "No inflight cap" → **FALSE** (MAX_INFLIGHT = 8 existed, now functional)
+### Architecture Components Already Present
+Upon code review, several foundational security features were already implemented:
+1. ✅ **TTL Management** - TTL_MS = 120,000 (2 minutes) existed, now better documented
+2. ✅ **State Machine** - TransferState enum (INIT/IN_PROGRESS/ABORTED/FAILED/COMPLETED) was present
+3. ✅ **Flow Control** - MAX_INFLIGHT = 8 cap existed, now fully functional with backpressure
+4. ✅ **Tombstone Pattern** - Used for cleanup, enhanced with ignore-based auth handling
 
-**But Gemini/Copilot found REAL issues:**
-- Token randomness actually broken (Math.random)
-- Backpressure incomplete (not handled)
-- Performance issues (string concat)
-- Code quality (magic numbers)
+### Critical Issues Identified by Automated Reviews
+Gemini Code Assist and GitHub Copilot identified important security and performance gaps:
+- **Token Generation** - Math.random() is not cryptographically secure (Fixed: crypto.getRandomValues)
+- **Backpressure** - Message sent but not handled by client (Fixed: Exponential backoff)
+- **Performance** - O(n²) string concatenation for large blobs (Fixed: Chunked array building)
+- **Code Quality** - Magic numbers throughout (Fixed: Named constants)
+- **DoS Vulnerability** - Auth errors failed transfers (Fixed: Ignore + log pattern)
+
+### Key Takeaway
+The architecture was fundamentally sound with proper state management and flow control. The automated reviews surfaced implementation-level security and performance issues that required systematic remediation. This demonstrates the complementary value of both architectural review and automated code analysis.
 
 ---
 
@@ -330,10 +336,11 @@ The human claimed:
 ✅ **Fully tested** (134 tests passing, +11 new)
 ✅ **Production ready**
 
-**The copilot implementation had good architecture but real security gaps. This systematic fix proves:**
-1. AI reviewers (Gemini/Copilot) are more accurate than inflammatory human reviews
-2. Systematic fixing with traceability beats ad-hoc patches
-3. All issues are addressable with proper methodology
+**Lessons Learned:**
+1. Systematic code review (human + automated) provides comprehensive coverage
+2. Architectural soundness + implementation correctness both matter
+3. Traceable fixes with full documentation enable confident deployment
+4. Test-driven remediation ensures no regressions
 
 ---
 

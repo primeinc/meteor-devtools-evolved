@@ -16,6 +16,10 @@ const isFrame = (function () {
   }
 })()
 
+// Meteor detection timing constants
+const METEOR_DETECTION_POLL_INTERVAL_MS = 10 // Poll every 10ms during page load
+const METEOR_DETECTION_RETRY_DELAY_MS = 2000 // Retry after 2 seconds for slow-loading apps
+
 const PARENTHESIS_REGEX = /(\S*) \(([^)]+)\)/
 
 export const sendMessage = (eventType: EventType, data: object) => {
@@ -170,13 +174,13 @@ export function injectAll() {
                 : 'Unable to find Meteor on the main page.',
             )
           }
-        }, 2000)
+        }, METEOR_DETECTION_RETRY_DELAY_MS)
       }
     }
 
     inject()
 
-    interval = window.setInterval(inject, 10)
+    interval = window.setInterval(inject, METEOR_DETECTION_POLL_INTERVAL_MS)
   }
 }
 

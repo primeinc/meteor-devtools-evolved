@@ -1,85 +1,207 @@
 import { createLogger } from '@/Utils/Logger'
+import {
+  generateTransferId,
+  generateAuthToken,
+  generateClientInstanceId,
+} from '@/Utils/SecureId'
 
 const logger = createLogger('RelayClient')
 
 const MAX_RETRY = 3
 const CHUNK = 1 * 1024 * 1024
 const ACK_TIMEOUT_MS = 5000
+const BACKPRESSURE_BASE_DELAY_MS = 100
+const BACKPRESSURE_MAX_DELAY_MS = 2000
+const MAX_BACKPRESSURE_RETRIES = 10 // Cap to prevent Math.pow overflow (2^10 = 1024ms base)
 
 export class RelayClient {
   private port: chrome.runtime.Port
   private failureListener: ((m: any) => void) | null = null
+  private clientInstanceId: string
 
   constructor() {
     this.port = chrome.runtime.connect({ name: 'export-relay' })
-    logger.debug('Connected to background via port')
+    // Generate a cryptographically secure client instance ID
+    this.clientInstanceId = generateClientInstanceId()
+    logger.debug(
+      'Connected to background via port, clientInstanceId:',
+      this.clientInstanceId,
+    )
   }
 
-  private waitAck(match: (m:any)=>boolean) {
+  private waitAck(match: (m: any) => boolean, backpressureRetry?: number) {
     return new Promise<void>((resolve, reject) => {
-      const t = setTimeout(() => { off(); reject(new Error('ACK timeout')) }, ACK_TIMEOUT_MS)
-      const on = (m:any) => {
+      const t = setTimeout(() => {
+        off()
+        reject(new Error('ACK timeout'))
+      }, ACK_TIMEOUT_MS)
+      const on = (m: any) => {
         // Check for EXPORT_FAILED first
         if (m?.type === 'EXPORT_FAILED') {
           clearTimeout(t)
           off()
-          reject(new Error(`Export failed: ${m.payload?.reason || 'Unknown error'}`))
+          reject(
+            new Error(`Export failed: ${m.payload?.reason || 'Unknown error'}`),
+          )
           return
         }
-        if (match(m)) { clearTimeout(t); off(); resolve() }
+        // Handle backpressure with exponential backoff
+        if (m?.type === 'EXPORT_BACKPRESSURE') {
+          clearTimeout(t)
+          off()
+          const retryCount = Math.min(
+            backpressureRetry ?? 0,
+            MAX_BACKPRESSURE_RETRIES,
+          )
+          const delay = Math.min(
+            BACKPRESSURE_BASE_DELAY_MS * Math.pow(2, retryCount),
+            BACKPRESSURE_MAX_DELAY_MS,
+          )
+          logger.debug(
+            `Backpressure received, retrying in ${delay}ms (attempt ${retryCount + 1})`,
+          )
+          reject({ isBackpressure: true, retryCount, delay })
+          return
+        }
+        if (match(m)) {
+          clearTimeout(t)
+          off()
+          resolve()
+        }
       }
       const off = () => this.port.onMessage.removeListener(on)
       this.port.onMessage.addListener(on)
     })
   }
 
-  private async reqAck(msg: any, matcher: (m:any)=>boolean) {
+  private async reqAck(msg: any, matcher: (m: any) => boolean) {
+    let backpressureRetry = 0
     for (let attempt = 0; attempt <= MAX_RETRY; attempt++) {
       this.port.postMessage(msg)
-      try { await this.waitAck(matcher); return } catch (e) { if (attempt === MAX_RETRY) throw e }
+      try {
+        await this.waitAck(matcher, backpressureRetry)
+        return
+      } catch (e: any) {
+        // Handle backpressure with exponential backoff
+        if (e?.isBackpressure) {
+          await new Promise(resolve => setTimeout(resolve, e.delay))
+          backpressureRetry = e.retryCount + 1
+          // Don't count backpressure as a retry attempt
+          attempt--
+          continue
+        }
+        if (attempt === MAX_RETRY) throw e
+      }
     }
   }
 
-  async sendBlob(blob: Blob, filename: string, mime: string, expectedHash: string, signal: AbortSignal, onProgress: (p:number)=>void) {
-    const id =
-      (globalThis.crypto as any)?.randomUUID?.() ??
-      `dl-${Date.now()}-${Math.random().toString(36).slice(2)}`
-    logger.info('Starting transfer:', { id, filename, blobSize: blob.size, mime, expectedHash })
+  async sendBlob(
+    blob: Blob,
+    filename: string,
+    mime: string,
+    expectedHash: string,
+    signal: AbortSignal,
+    onProgress: (p: number) => void,
+  ) {
+    // Generate cryptographically secure ID and token
+    const id = generateTransferId()
+    const token = generateAuthToken()
+    logger.info('Starting transfer:', {
+      id,
+      filename,
+      blobSize: blob.size,
+      mime,
+      expectedHash,
+      token,
+    })
 
     // Send ABORT message if signal is aborted
     signal.addEventListener('abort', () => {
       try {
         logger.info('Abort signal received, sending ABORT message')
-        this.port.postMessage({ type:'EXPORT_DOWNLOAD_ABORT', payload:{ id } })
+        this.port.postMessage({
+          type: 'EXPORT_DOWNLOAD_ABORT',
+          payload: { id, token, clientInstanceId: this.clientInstanceId },
+        })
       } catch (e) {
         logger.warn('Failed to send ABORT:', e)
       }
     })
 
-    await this.reqAck({ type:'EXPORT_DOWNLOAD_BEGIN', payload:{ id, filename, mime, expectedHash } }, (m)=> m?.type==='EXPORT_ACK' && m.payload?.id===id && m.payload?.type==='BEGIN')
-    logger.debug('BEGIN acknowledged')
+    const beginResp = await this.reqAck(
+      {
+        type: 'EXPORT_DOWNLOAD_BEGIN',
+        payload: {
+          id,
+          filename,
+          mime,
+          expectedHash,
+          token,
+          clientInstanceId: this.clientInstanceId,
+        },
+      },
+      m =>
+        m?.type === 'EXPORT_ACK' &&
+        m.payload?.id === id &&
+        m.payload?.type === 'BEGIN',
+    )
+    logger.debug('BEGIN acknowledged, token:', beginResp)
 
     const buf = new Uint8Array(await blob.arrayBuffer())
-    const total = Math.ceil(buf.byteLength/CHUNK)
-    logger.debug('Buffer size:', buf.byteLength, 'chunks:', total, 'first 4 bytes:', Array.from(buf.slice(0, 4)))
+    const total = Math.ceil(buf.byteLength / CHUNK)
+    logger.debug(
+      'Buffer size:',
+      buf.byteLength,
+      'chunks:',
+      total,
+      'first 4 bytes:',
+      Array.from(buf.slice(0, 4)),
+    )
 
     for (let idx = 0; idx < total; idx++) {
-      if (signal.aborted) throw new DOMException('aborted','AbortError')
+      if (signal.aborted) throw new DOMException('aborted', 'AbortError')
       const start = idx * CHUNK
       const end = Math.min(buf.byteLength, start + CHUNK)
       const chunk = buf.subarray(start, end)
       const bytesArray = Array.from(chunk)
-      logger.debug(`Sending chunk ${idx+1}/${total}, size: ${bytesArray.length}, first 4 bytes:`, bytesArray.slice(0, 4))
+      logger.debug(
+        `Sending chunk ${idx + 1}/${total}, size: ${
+          bytesArray.length
+        }, first 4 bytes:`,
+        bytesArray.slice(0, 4),
+      )
 
       await this.reqAck(
-        { type:'EXPORT_DOWNLOAD_CHUNK', payload:{ id, idx, bytes: bytesArray } },
-        (m)=> m?.type==='EXPORT_ACK' && m.payload?.id===id && m.payload?.type==='CHUNK' && m.payload?.idx===idx
+        {
+          type: 'EXPORT_DOWNLOAD_CHUNK',
+          payload: {
+            id,
+            idx,
+            bytes: bytesArray,
+            token,
+            clientInstanceId: this.clientInstanceId,
+          },
+        },
+        m =>
+          m?.type === 'EXPORT_ACK' &&
+          m.payload?.id === id &&
+          m.payload?.type === 'CHUNK' &&
+          m.payload?.idx === idx,
       )
       onProgress((idx + 1) / total)
     }
 
     logger.debug('Sending END signal')
-    await this.reqAck({ type:'EXPORT_DOWNLOAD_END', payload:{ id } }, (m)=> m?.type==='EXPORT_ACK' && m.payload?.id===id && m.payload?.type==='END')
+    await this.reqAck(
+      {
+        type: 'EXPORT_DOWNLOAD_END',
+        payload: { id, token, clientInstanceId: this.clientInstanceId },
+      },
+      m =>
+        m?.type === 'EXPORT_ACK' &&
+        m.payload?.id === id &&
+        m.payload?.type === 'END',
+    )
     logger.info('Transfer complete')
   }
 }

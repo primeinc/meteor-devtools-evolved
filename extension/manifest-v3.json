@@ -29,7 +29,8 @@
     }
   ],
   "permissions": [
-    "downloads"
+    "downloads",
+    "offscreen"
   ],
   "host_permissions": [
     "https://api.github.com/*",

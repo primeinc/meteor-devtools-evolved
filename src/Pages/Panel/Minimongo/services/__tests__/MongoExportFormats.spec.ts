@@ -393,6 +393,64 @@ describe('MongoExportFormats - EJSON Handling', () => {
   })
 })
 
+describe('MongoExportFormats - _id Type Variety', () => {
+  // MongoDB allows _id to be ANY BSON type (except array)
+  // Meteor defaults to string, but can use ObjectId with idGeneration: "MONGO"
+  // Tests MUST NOT assume _id is always one type!
+
+  it('should handle string _id (Meteor default)', () => {
+    const docs = [{ _id: 'abc123', name: 'Test' }]
+    const result = JSON_SCHEMA.formatter({ documents: docs, collectionName: 'test' })
+    const schema = JSON.parse(result)
+    expect(schema.properties._id.type).toBe('string')
+  })
+
+  it('should handle ObjectId _id (EJSON format)', () => {
+    const docs = [{ _id: { $oid: '507f1f77bcf86cd799439011' }, name: 'Test' }]
+    const result = JSON_SCHEMA.formatter({ documents: docs, collectionName: 'test' })
+    const schema = JSON.parse(result)
+    // ObjectId detected from EJSON
+    expect(schema.properties._id).toBeDefined()
+  })
+
+  it('should handle numeric _id (valid MongoDB)', () => {
+    const docs = [{ _id: 12345, name: 'Test' }]
+    const result = JSON_SCHEMA.formatter({ documents: docs, collectionName: 'test' })
+    const schema = JSON.parse(result)
+    expect(schema.properties._id.type).toBe('number')
+  })
+
+  it('should handle mixed _id types across documents', () => {
+    const docs = [
+      { _id: 'string-id', name: 'Test 1' },
+      { _id: 42, name: 'Test 2' },
+    ]
+    const result = JSON_SCHEMA.formatter({ documents: docs, collectionName: 'test' })
+    const schema = JSON.parse(result)
+    // Should produce anyOf for mixed types
+    expect(schema.properties._id.anyOf).toBeDefined()
+  })
+
+  it('TypeScript should map ObjectId to string', () => {
+    const docs = [{ _id: { $oid: '507f1f77bcf86cd799439011' }, name: 'Test' }]
+    const result = TYPESCRIPT_INTERFACE.formatter({ documents: docs, collectionName: 'test' })
+    expect(result).toContain('_id: string') // TS has no ObjectId type
+  })
+
+  it('Mongoose should map ObjectId to Schema.Types.ObjectId', () => {
+    const docs = [{ _id: { $oid: '507f1f77bcf86cd799439011' }, name: 'Test' }]
+    const result = MONGOOSE_SCHEMA.formatter({ documents: docs, collectionName: 'test' })
+    expect(result).toContain('Schema.Types.ObjectId')
+  })
+
+  it('Mongoose should map string _id to String', () => {
+    const docs = [{ _id: 'meteor-string-id', name: 'Test' }]
+    const result = MONGOOSE_SCHEMA.formatter({ documents: docs, collectionName: 'test' })
+    expect(result).toContain('type: String')
+    expect(result).not.toContain('Schema.Types.ObjectId')
+  })
+})
+
 describe('MongoExportFormats - Edge Cases', () => {
   describe('empty collections', () => {
     it('NDJSON should return empty string', () => {

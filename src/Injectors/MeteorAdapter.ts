@@ -50,6 +50,8 @@ export const MeteorAdapter = () => {
         })
 
         // Send detailed method log with optional stack trace (new functionality)
+        // Note: Stack traces are always captured but can be stripped in the store
+        // based on settings since we don't have access to PanelStore in inject context
         const stackTrace = (() => {
           try {
             const error = new Error()

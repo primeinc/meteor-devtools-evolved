@@ -8,6 +8,13 @@ jest.mock('@/Pages/Panel/Minimongo/services/MongoExportFormats', () => ({}))
 jest.mock('@/Utils/Logger', () => ({
   createLogger: () => ({ info: jest.fn(), debug: jest.fn(), error: jest.fn() })
 }))
+jest.mock('@/Stores/PanelStore', () => ({
+  PanelStore: {
+    settingStore: {
+      isQueryStackTraceEnabled: false
+    }
+  }
+}))
 
 import { MinimongoStore } from '../index'
 
@@ -65,7 +72,31 @@ describe('MinimongoStore - Method Logs', () => {
 
       store.addMethodLog(log)
 
-      expect(store.methodLogs[0].stackTrace).toBe(log.stackTrace)
+      // Stack trace should be stripped since isQueryStackTraceEnabled is false (mocked)
+      expect(store.methodLogs[0].stackTrace).toBeUndefined()
+    })
+
+    it('should preserve stack trace when feature is enabled', () => {
+      // Mock the setting as enabled
+      const mockPanelStore = require('@/Stores/PanelStore')
+      mockPanelStore.PanelStore.settingStore.isQueryStackTraceEnabled = true
+
+      const log: MinimongoMethodLog = {
+        collectionName: 'posts',
+        method: 'insert',
+        selector: { title: 'Test Post' },
+        runtime: 10,
+        stackTrace: 'Error\n    at someFunction (file.js:10:5)',
+        timestamp: 1234567890
+      }
+
+      store.addMethodLog(log)
+
+      // Stack trace should be preserved when enabled
+      expect(store.methodLogs[0].stackTrace).toBe('Error\n    at someFunction (file.js:10:5)')
+
+      // Reset for other tests
+      mockPanelStore.PanelStore.settingStore.isQueryStackTraceEnabled = false
     })
   })
 

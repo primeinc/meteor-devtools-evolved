@@ -10,6 +10,7 @@ import { ExportService } from '@/Pages/Panel/Minimongo/services/ExportService'
 import { ExportFormatKey } from '@/Pages/Panel/Minimongo/services/MongoExportFormats'
 import { createLogger } from '@/Utils/Logger'
 import { MinimongoMethodLog } from './types'
+import { PanelStore } from '@/Stores/PanelStore'
 
 const logger = createLogger('MinimongoStore')
 
@@ -137,6 +138,12 @@ export class MinimongoStore {
 
   @action
   addMethodLog(log: MinimongoMethodLog) {
+    // Strip stack trace if feature is disabled in settings
+    // This provides performance optimization since stack traces are expensive
+    if (!PanelStore?.settingStore?.isQueryStackTraceEnabled) {
+      log.stackTrace = undefined
+    }
+
     this.methodLogs.push(log)
 
     // Limit to 1000 entries (prevent memory leaks)

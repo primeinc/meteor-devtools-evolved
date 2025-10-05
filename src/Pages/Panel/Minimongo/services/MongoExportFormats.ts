@@ -704,15 +704,215 @@ function getAllFields(obj: any, prefix = ''): Record<string, any> {
 
   Object.entries(obj).forEach(([key, value]) => {
     const path = prefix ? `${prefix}.${key}` : key
-    fields[path] = value
 
-    // Don't recurse into EJSON objects or arrays
-    if (value && typeof value === 'object' && !Array.isArray(value) && !(value as any).$oid && !(value as any).$date && !(value as any).$binary) {
+    // Check if nested object (not EJSON, not array, not Date)
+    const isNested = value && typeof value === 'object' &&
+                     !Array.isArray(value) &&
+                     !(value instanceof Date) &&
+                     !(value as any).$oid && !(value as any).$date && !(value as any).$binary
+
+    if (isNested) {
+      // Recurse into nested objects, DON'T add parent
       Object.assign(fields, getAllFields(value, path))
+    } else {
+      // Only add leaf values (primitives, arrays, EJSON, Date instances)
+      fields[path] = value
     }
   })
 
   return fields
+}
+
+/**
+ * Schema tree node representing inferred structure
+ *
+ * Based on research:
+ * - Variety.js (MongoDB schema analyzer): https://github.com/variety/variety
+ * - mongodb-schema (probabilistic inference): https://github.com/mongodb-js/mongodb-schema
+ * - Academic: "Schema Inference for Massive JSON Datasets" (EDBT 2017)
+ */
+interface SchemaNode {
+  /** Primary type(s) - can be union for mixed types */
+  types: Set<string>
+
+  /** Number of documents where this field appeared */
+  count: number
+
+  /** Nested object structure (for type 'object') */
+  children?: Map<string, SchemaNode>
+
+  /** Array item types (for type 'array') */
+  arrayItemTypes?: Set<string>
+
+  /** Nested array item structure (for arrays of objects) */
+  arrayItemSchema?: SchemaNode
+}
+
+/**
+ * Build hierarchical schema tree from documents
+ *
+ * Algorithm based on Map-Reduce pattern:
+ * 1. Map: Traverse each document, detect types for each field
+ * 2. Reduce: Merge field information across all documents
+ * 3. Result: Tree structure with type probabilities and nesting
+ *
+ * This approach differs from getAllFields() which returns flat dot notation.
+ * Schema tree preserves hierarchical structure needed for code generation.
+ *
+ * @param docs - Array of documents to analyze
+ * @param totalDocs - Total document count (for required field calculation)
+ * @returns Root schema node representing document structure
+ *
+ * @example
+ * ```typescript
+ * const docs = [
+ *   { user: { name: 'John', age: 30 } },
+ *   { user: { name: 'Jane' } }  // age is optional
+ * ]
+ *
+ * const schema = buildSchemaTree(docs, docs.length)
+ * // schema.children.get('user').children.get('name').count === 2 (required)
+ * // schema.children.get('user').children.get('age').count === 1 (optional)
+ * ```
+ */
+function buildSchemaTree(docs: any[], totalDocs: number): SchemaNode {
+  const root: SchemaNode = {
+    types: new Set(['object']),
+    count: totalDocs,
+    children: new Map()
+  }
+
+  // Map phase: Analyze each document
+  docs.forEach(doc => {
+    if (doc && typeof doc === 'object' && !Array.isArray(doc)) {
+      analyzeObject(doc, root.children!, totalDocs)
+    }
+  })
+
+  return root
+}
+
+/**
+ * Recursively analyze object structure and update schema tree
+ *
+ * Handles:
+ * - Nested objects (recursive traversal)
+ * - Arrays (with item type detection)
+ * - EJSON patterns (Date, ObjectID, Binary)
+ * - Union types (mixed type fields)
+ * - Optional vs required fields (based on occurrence count)
+ *
+ * @param obj - Object to analyze
+ * @param schema - Parent schema node's children map
+ * @param totalDocs - Total document count for required calculation
+ */
+function analyzeObject(
+  obj: any,
+  schema: Map<string, SchemaNode>,
+  totalDocs: number
+): void {
+  Object.entries(obj).forEach(([key, value]) => {
+    // Get or create schema node for this field
+    if (!schema.has(key)) {
+      schema.set(key, {
+        types: new Set(),
+        count: 0,
+        children: undefined,
+        arrayItemTypes: undefined,
+        arrayItemSchema: undefined
+      })
+    }
+
+    const node = schema.get(key)!
+    node.count++
+
+    // Detect type and update node
+    const detectedType = detectPrimitiveType(value)
+
+    if (detectedType === 'object' && value && typeof value === 'object' && !Array.isArray(value)) {
+      // Nested object - recurse
+      node.types.add('object')
+      if (!node.children) {
+        node.children = new Map()
+      }
+      analyzeObject(value, node.children, totalDocs)
+
+    } else if (detectedType === 'array' && Array.isArray(value)) {
+      // Array - analyze item types
+      node.types.add('array')
+      if (!node.arrayItemTypes) {
+        node.arrayItemTypes = new Set()
+      }
+
+      value.forEach(item => {
+        const itemType = detectPrimitiveType(item)
+        node.arrayItemTypes!.add(itemType)
+
+        // If array of objects, infer object structure
+        if (itemType === 'object' && item && typeof item === 'object') {
+          if (!node.arrayItemSchema) {
+            node.arrayItemSchema = {
+              types: new Set(['object']),
+              count: 0,
+              children: new Map()
+            }
+          }
+          analyzeObject(item, node.arrayItemSchema.children!, totalDocs)
+        }
+      })
+
+    } else {
+      // Primitive, EJSON, or Date instance
+      node.types.add(detectedType)
+    }
+  })
+}
+
+/**
+ * Detect primitive type of a value
+ *
+ * Priority order (MUST check in this order to avoid false positives):
+ * 1. null/undefined
+ * 2. EJSON patterns ($oid, $date, $binary)
+ * 3. instanceof Date (before typeof object)
+ * 4. Arrays (before typeof object)
+ * 5. Primitives (string, number, boolean)
+ * 6. Plain objects
+ *
+ * Returns semantic types for code generation:
+ * - 'Date' for EJSON $date or Date instances
+ * - 'ObjectId' for EJSON $oid
+ * - 'Buffer' for EJSON $binary
+ * - Standard primitives: 'string', 'number', 'boolean', 'null'
+ * - Complex: 'array', 'object'
+ */
+function detectPrimitiveType(value: any): string {
+  // 1. Null/undefined first
+  if (value === null) return 'null'
+  if (value === undefined) return 'undefined'
+
+  // 2. EJSON patterns (MongoDB Extended JSON)
+  if (value && typeof value === 'object') {
+    if (value.$oid && typeof value.$oid === 'string') return 'ObjectId'
+    if ('$date' in value) return 'Date'
+    if (value.$binary && typeof value.$binary === 'string') return 'Buffer'
+  }
+
+  // 3. Date instance (before typeof object check)
+  if (value instanceof Date) return 'Date'
+
+  // 4. Arrays (before typeof object check)
+  if (Array.isArray(value)) return 'array'
+
+  // 5. Primitives
+  if (typeof value === 'string') return 'string'
+  if (typeof value === 'number') return 'number'
+  if (typeof value === 'boolean') return 'boolean'
+
+  // 6. Plain objects (last resort)
+  if (typeof value === 'object') return 'object'
+
+  return 'unknown'
 }
 
 /**

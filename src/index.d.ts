@@ -18,6 +18,7 @@ type MessageSource = 'meteor-devtools-evolved'
 type EventType =
   | 'ddp-event'
   | 'minimongo-get-collections'
+  | 'minimongo-method'
   | 'ddp-run-method'
   | 'console'
   | 'sync-subscriptions'
@@ -239,6 +240,7 @@ interface ISettings {
   repositoryData: IGitHubRepository | null
   activeFilterBlacklist: string[]
   activeFilters: FilterTypeMap<boolean>
+  isQueryStackTraceEnabled: boolean
 }
 
 type ConsoleType = 'log' | 'info' | 'warn' | 'error'

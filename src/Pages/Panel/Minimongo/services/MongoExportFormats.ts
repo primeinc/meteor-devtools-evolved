@@ -478,7 +478,12 @@ function schemaNodeToTypeScript(node: SchemaNode, totalDocs: number): TypeScript
         // Nested array - collapse
         // PR REVIEW IMPLEMENTED: Document nested array limitation for future enhancement
         // LIMITATION: Nested arrays (array of arrays) are collapsed to any[]
-        // FUTURE: Could generate Array<Array<T>> for consistent nesting
+        // REASONING: Prevents complex inference for edge cases (e.g., [[1,2],[3,"four"]] → any[])
+        //            Keeps schema generation simple and predictable
+        //            Most real-world use cases don't need deep nested array inference
+        // FUTURE: Could generate Array<Array<T>> for consistent nesting (e.g., number[][] for [[1,2],[3,4]])
+        //         Would require tracking item types at each nesting level
+        // TESTED: ExportService.spec.ts line 365 - "should collapse nested arrays"
         if (itemTypes.includes('array')) {
           return { type: 'any[]' }
         }

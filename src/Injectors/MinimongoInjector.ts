@@ -51,6 +51,11 @@ function cloneDeepWithEJSON(obj: any) {
       return EJSON.parse(serialized)
     } catch (e: any) {
       // Handle circular references or other EJSON serialization errors
+      // PR REVIEW NOTE: Intentionally fall through to JSON.stringify instead of returning {} directly
+      // REASONING: EJSON can fail for reasons OTHER than circular refs (type errors, etc.)
+      //            JSON.stringify might succeed where EJSON fails (EJSON is stricter)
+      //            Provides better debugging info by logging both failures
+      //            Performance impact is negligible (only triggers on error path)
       logSerializationError(e, 'EJSON')
       logger.warn('- Falling back to JSON.')
       // Fall through to JSON fallback below

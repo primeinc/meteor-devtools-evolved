@@ -3,6 +3,9 @@ import { calculatePagination } from '@/Utils/Pagination'
 import debounce from 'lodash.debounce'
 import { action, computed, observable, runInAction } from 'mobx'
 
+// UI timing constants
+const LOADING_STATE_DEBOUNCE_MS = 250 // Debounce loading state updates to prevent UI flicker
+
 type BufferCallback<T> = ((buffer: T[]) => void) | null
 type FilterFunction<T> = ((collection: T[], search: string) => T[]) | null
 
@@ -85,7 +88,7 @@ export abstract class Searchable<T> {
         // eslint-disable-next-line no-console
         console.log('loading:false')
       }),
-      250,
+      LOADING_STATE_DEBOUNCE_MS,
     )
   }
 

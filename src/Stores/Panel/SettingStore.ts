@@ -10,6 +10,9 @@ import { PanelDatabase } from '@/Database/PanelDatabase'
 import { FilterCriteria } from '@/Pages/Panel/DDP/FilterConstants'
 import { compact, flatten, omit } from '@/Utils/Objects'
 
+// Settings initialization timing
+const SETTINGS_HYDRATION_DELAY_MS = 1000 // Delay before marking settings as hydrated
+
 export class SettingStore implements ISettings {
   hydrated = false
 
@@ -37,7 +40,7 @@ export class SettingStore implements ISettings {
         runInAction(() => {
           this.hydrated = true
         })
-      }, 1000)
+      }, SETTINGS_HYDRATION_DELAY_MS)
     })
 
     reaction(

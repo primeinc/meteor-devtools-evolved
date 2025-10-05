@@ -57,6 +57,9 @@ interface DDPLogContent {
   name?: string
   error?: DDPError
   subs?: string[]
+  methods?: string[]
+  fields?: Record<string, any>
+  params?: any[]
 }
 
 interface DDPLog {

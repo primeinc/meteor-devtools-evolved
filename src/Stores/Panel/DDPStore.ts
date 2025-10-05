@@ -50,11 +50,11 @@ export class DDPStore extends SearchableEventEmitter<DDPLog> {
 
     this.inboundBytes += buffer
       .filter(log => log.isInbound)
-      .reduce((sum, log) => sum + (log.size ?? 0), 0)
+      .reduce((sum, log) => sum + (log.byteSize ?? log.size ?? 0), 0)
 
     this.outboundBytes += buffer
       .filter(log => log.isOutbound)
-      .reduce((sum, log) => sum + (log.size ?? 0), 0)
+      .reduce((sum, log) => sum + (log.byteSize ?? log.size ?? 0), 0)
 
     // Emit events for DDP 'changed' messages (for Workload C)
     buffer.forEach(log => {

@@ -1231,8 +1231,10 @@ function detectPrimitiveType(value: any): string {
 
 /**
  * Flatten object to dot notation
+ *
+ * Exported for use in schema previews
  */
-function flattenObject(obj: any, prefix = ''): Record<string, any> {
+export function flattenObject(obj: any, prefix = ''): Record<string, any> {
   const flattened: Record<string, any> = {}
 
   if (!obj || typeof obj !== 'object') {

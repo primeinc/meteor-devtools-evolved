@@ -14,7 +14,7 @@ import {
 import { runInAction } from 'mobx'
 import { usePanelStore } from '@/Stores/PanelStore'
 import { ExportService } from '../services/ExportService'
-import { ExportFormat } from '../services/MongoExportFormats'
+import { ExportFormat, flattenObject } from '../services/MongoExportFormats'
 
 export interface ExportDialogProps {
   isOpen: boolean
@@ -79,7 +79,9 @@ export const ExportDialog = observer(function ExportDialog(
 
     if (isSchemaFormat) {
       setIsFullPreview(false)
-      const sample = docs.slice(0, 100).map(d => Object.keys(d))
+      // Use flattenObject to show nested fields in dot notation (e.g., user.name, user.age)
+      // This gives a more accurate preview than just top-level keys
+      const sample = docs.slice(0, 100).map(d => Object.keys(flattenObject(d)))
       const uniqueKeys = [...new Set(sample.flat())].sort()
       data = `${selectedFormat.name} Preview:\n\n`
       data += `Format: ${selectedFormat.description}\n`

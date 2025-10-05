@@ -5,6 +5,24 @@ import throttle from 'lodash.throttle'
 const logger = createLogger('MinimongoInjector')
 
 /**
+ * Log serialization errors with consistent messaging
+ * PR REVIEW IMPLEMENTED: Extract error handling to avoid double try-catch pattern
+ */
+function logSerializationError(e: any, context: 'EJSON' | 'JSON') {
+  if (e && typeof e === 'object') {
+    if (e.name === 'TypeError' && /circular/i.test(e.message)) {
+      logger.warn(`${context}.stringify failed due to circular reference:`, e.message)
+    } else if (e.name === 'TypeError') {
+      logger.warn(`${context}.stringify TypeError:`, e.message)
+    } else {
+      logger.warn(`${context}.stringify failed:`, e.name, e.message)
+    }
+  } else {
+    logger.warn(`${context}.stringify failed with unknown error:`, e)
+  }
+}
+
+/**
  * Serialize object using EJSON to preserve Dates and other MongoDB types
  *
  * EJSON converts:
@@ -33,17 +51,8 @@ function cloneDeepWithEJSON(obj: any) {
       return EJSON.parse(serialized)
     } catch (e: any) {
       // Handle circular references or other EJSON serialization errors
-      if (e && typeof e === 'object') {
-        if (e.name === 'TypeError' && /circular/i.test(e.message)) {
-          logger.warn('EJSON.stringify failed due to circular reference:', e.message, '- Falling back to JSON.')
-        } else if (e.name === 'TypeError') {
-          logger.warn('EJSON.stringify TypeError:', e.message, '- Falling back to JSON.')
-        } else {
-          logger.warn('EJSON.stringify failed:', e.name, e.message, '- Falling back to JSON.')
-        }
-      } else {
-        logger.warn('EJSON.stringify failed with unknown error:', e, '- Falling back to JSON.')
-      }
+      logSerializationError(e, 'EJSON')
+      logger.warn('- Falling back to JSON.')
       // Fall through to JSON fallback below
     }
   } else {
@@ -61,17 +70,7 @@ function cloneDeepWithEJSON(obj: any) {
     return JSON.parse(JSON.stringify(obj))
   } catch (e: any) {
     // Handle circular references or other JSON serialization errors
-    if (e && typeof e === 'object') {
-      if (e.name === 'TypeError' && /circular/i.test(e.message)) {
-        logger.warn('JSON.stringify failed due to circular reference:', e.message)
-      } else if (e.name === 'TypeError') {
-        logger.warn('JSON.stringify TypeError:', e.message)
-      } else {
-        logger.warn('JSON.stringify failed:', e.name, e.message)
-      }
-    } else {
-      logger.warn('JSON.stringify failed with unknown error:', e)
-    }
+    logSerializationError(e, 'JSON')
     return {} // Return empty object instead of crashing
   }
 }

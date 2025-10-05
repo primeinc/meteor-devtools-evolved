@@ -73,10 +73,22 @@ const OFFSCREEN_DOWNLOAD_TIMEOUT_MS = 30_000 // 30 seconds timeout for offscreen
  * @see https://developer.mozilla.org/en-US/docs/Web/API/btoa#unicode_strings
  * @see https://web.dev/articles/base64-encoding
  */
+/**
+ * Type guard for Uint8Array with toBase64 method
+ * PR REVIEW IMPLEMENTED: Improve type safety for toBase64 feature detection
+ */
+interface Uint8ArrayWithToBase64 extends Uint8Array {
+  toBase64(): string
+}
+
+function hasToBase64(arr: Uint8Array): arr is Uint8ArrayWithToBase64 {
+  return 'toBase64' in Uint8Array.prototype && typeof (arr as any).toBase64 === 'function'
+}
+
 function uint8ArrayToBase64(bytes: Uint8Array): string {
   // Use native toBase64 if available (Chrome 118+)
-  if ('toBase64' in Uint8Array.prototype) {
-    return (bytes as any).toBase64()
+  if (hasToBase64(bytes)) {
+    return bytes.toBase64()
   }
 
   // Fallback: Process in small chunks to avoid blocking service worker

@@ -9,6 +9,15 @@
  */
 
 /**
+ * Valid JavaScript identifier pattern for collection names
+ * PR REVIEW IMPLEMENTED: Extract regex to named constant for maintainability
+ *
+ * Matches: letters, underscore, then alphanumeric + underscore
+ * Examples: users, _temp, user123, my_collection
+ */
+const VALID_IDENTIFIER_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_]*$/
+
+/**
  * Sanitize collection name for safe MongoDB shell usage
  *
  * Valid MongoDB collection names:
@@ -37,7 +46,7 @@
  */
 export function safeCollectionAccessor(name: string): string {
   // Validate: Must be valid JavaScript identifier for clean syntax
-  const isValidIdentifier = /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)
+  const isValidIdentifier = VALID_IDENTIFIER_PATTERN.test(name)
 
   if (isValidIdentifier && !name.startsWith('system.')) {
     // Safe to use dot notation

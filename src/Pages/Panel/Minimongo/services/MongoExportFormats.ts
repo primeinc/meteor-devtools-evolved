@@ -36,7 +36,7 @@ import { safeCollectionAccessor, escapeMongoShellString } from './CollectionName
 // ============================================================================
 
 export interface ExportFormat {
-  key: string
+  key: ExportFormatKey
   name: string
   description: string
   extension: string
@@ -56,6 +56,20 @@ export interface ExportOptions {
   pretty?: boolean
   includeMetadata?: boolean
 }
+
+/**
+ * Valid export format keys
+ * PR REVIEW IMPLEMENTED: Union type for format parameter type safety
+ */
+export type ExportFormatKey =
+  | 'mongo-import-ndjson'
+  | 'mongo-import-array'
+  | 'mongo-compass'
+  | 'mongo-shell'
+  | 'typescript'
+  | 'mongoose'
+  | 'json-schema'
+  | 'csv'
 
 // ============================================================================
 // Format Definitions
@@ -82,8 +96,8 @@ export const MONGO_IMPORT_NDJSON: ExportFormat = {
     if (docs.length === 0) return ''
 
     // Each document on separate line (NDJSON format)
-    // EJSON.stringify preserves Date, ObjectID, Binary
-    return docs.map(doc => EJSON.stringify(doc)).join('\n')
+    // safeEJSONStringify preserves Date, ObjectID, Binary with depth checks
+    return docs.map(doc => safeEJSONStringify(doc)).join('\n')
   }
 }
 
@@ -104,8 +118,8 @@ export const MONGO_IMPORT_ARRAY: ExportFormat = {
   formatter: (data: ExportData, options = {}) => {
     const docs = data.documents || []
 
-    // EJSON.stringify with indent for readability
-    return EJSON.stringify(docs, { indent: options.pretty ? 2 : 0 })
+    // safeEJSONStringify with indent for readability and depth checks
+    return safeEJSONStringify(docs, { indent: options.pretty ? 2 : 0 })
   }
 }
 
@@ -462,6 +476,9 @@ function schemaNodeToTypeScript(node: SchemaNode, totalDocs: number): TypeScript
         const itemTypes = Array.from(node.arrayItemTypes)
 
         // Nested array - collapse
+        // PR REVIEW IMPLEMENTED: Document nested array limitation for future enhancement
+        // LIMITATION: Nested arrays (array of arrays) are collapsed to any[]
+        // FUTURE: Could generate Array<Array<T>> for consistent nesting
         if (itemTypes.includes('array')) {
           return { type: 'any[]' }
         }
@@ -718,17 +735,42 @@ interface JSONSchemaResult {
 /**
  * JSON Schema property value
  *
- * Can be:
- * - Empty object {} (collapsed/too complex)
- * - Primitive type { type: string } (includes 'null', 'string', 'number', 'boolean', 'integer', etc.)
- * - Object type { type: 'object', additionalProperties: boolean, properties: {...}, required: [...] }
- * - Array type { type: 'array', items?: {...} }
- * - Union type { anyOf: [...] }
+ * PR REVIEW IMPLEMENTED: Refactor union into named interfaces for maintainability
+ *
+ * Supports:
+ * - Empty object (collapsed due to depth/complexity limits)
+ * - Typed schemas (primitives, objects, arrays)
+ * - Union schemas (anyOf for multiple types)
  */
-type JSONSchemaProperty =
-  | Record<string, never>  // Empty object for collapsed schemas
-  | { type: string; additionalProperties?: boolean; properties?: Record<string, JSONSchemaProperty>; required?: string[]; items?: { type: string } | { anyOf: JSONSchemaProperty[] } }
+
+/** Empty schema for collapsed types (exceeded depth/complexity) */
+interface JSONSchemaCollapsed extends Record<string, never> {}
+
+/** Array items schema (can be single type or union) */
+type JSONSchemaItems =
+  | { type: string }
   | { anyOf: JSONSchemaProperty[] }
+
+/** Object/primitive/array type schema */
+interface JSONSchemaTyped {
+  type: string
+  additionalProperties?: boolean
+  properties?: Record<string, JSONSchemaProperty>
+  required?: string[]
+  items?: JSONSchemaItems
+  format?: string
+}
+
+/** Union type schema (anyOf) */
+interface JSONSchemaUnion {
+  anyOf: JSONSchemaProperty[]
+}
+
+/** Combined union of all JSON Schema property types */
+type JSONSchemaProperty =
+  | JSONSchemaCollapsed
+  | JSONSchemaTyped
+  | JSONSchemaUnion
 
 /**
  * Infer JSON Schema from documents using hierarchical schema tree
@@ -893,21 +935,19 @@ function schemaNodeToJSONSchema(node: SchemaNode, totalDocs: number, depth: numb
 function detectJSONSchemaType(value: any): string {
   if (value === null) return 'null'
 
-  // EJSON types - with validation
+  // EJSON types - with strict validation (must be single-key objects)
+  // PR REVIEW IMPLEMENTED: Check Object.keys().length === 1 to prevent misidentification
   if (value instanceof Date) return 'string' // ISO date string
 
-  if (
-    Object.prototype.hasOwnProperty.call(value || {}, '$date') &&
-    (typeof value.$date === 'string' || typeof value.$date === 'number')
-  ) {
+  if (isEJSONDate(value)) {
     return 'string'
   }
 
-  if (value?.$oid && typeof value.$oid === 'string' && /^[a-fA-F0-9]{24}$/.test(value.$oid)) {
+  if (isEJSONObjectId(value)) {
     return 'string'
   }
 
-  if (value?.$binary && typeof value.$binary === 'string') {
+  if (isEJSONBinary(value)) {
     return 'string'
   }
 
@@ -928,6 +968,88 @@ function detectJSONSchemaType(value: any): string {
 }
 
 // ============================================================================
+// EJSON Validation and Safe Serialization Helpers
+// ============================================================================
+
+/**
+ * Safe EJSON.stringify wrapper with size/depth checks
+ * PR REVIEW IMPLEMENTED: Prevent performance issues from circular refs or deep nesting
+ *
+ * @param value - Value to stringify
+ * @param options - EJSON stringify options
+ * @param maxDepth - Maximum nesting depth (default: 50)
+ * @returns Stringified value or error placeholder
+ */
+function safeEJSONStringify(value: any, options?: { indent?: number }, maxDepth = 50): string {
+  try {
+    // Check depth to prevent stack overflow
+    const checkDepth = (obj: any, depth = 0): number => {
+      if (depth > maxDepth) return depth
+      if (obj === null || typeof obj !== 'object') return depth
+
+      let maxChildDepth = depth
+      for (const key in obj) {
+        if (Object.prototype.hasOwnProperty.call(obj, key)) {
+          const childDepth = checkDepth(obj[key], depth + 1)
+          if (childDepth > maxChildDepth) maxChildDepth = childDepth
+          if (maxChildDepth > maxDepth) return maxChildDepth
+        }
+      }
+      return maxChildDepth
+    }
+
+    const depth = checkDepth(value)
+    if (depth > maxDepth) {
+      return `[Object: exceeded max depth ${maxDepth}]`
+    }
+
+    return EJSON.stringify(value, options)
+  } catch (e: any) {
+    // Handle circular references or other EJSON errors
+    if (e && typeof e === 'object' && /circular/i.test(e.message)) {
+      return '[Circular Reference]'
+    }
+    return `[Error: ${e?.message || 'EJSON serialization failed'}]`
+  }
+}
+
+/**
+ * Check if object is a valid EJSON special type
+ *
+ * EJSON spec requires special type objects to have EXACTLY ONE key.
+ * Multi-key objects like {$date: 123, foo: "bar"} are NOT EJSON - they're
+ * literal objects that happen to contain a special key name.
+ *
+ * This prevents data corruption on import/export.
+ *
+ * @example
+ * isEJSONDate({$date: 123}) // true - valid EJSON
+ * isEJSONDate({$date: 123, foo: "bar"}) // false - literal object
+ */
+function isEJSONObjectId(value: any): boolean {
+  return value &&
+         typeof value === 'object' &&
+         Object.keys(value).length === 1 &&
+         typeof value.$oid === 'string' &&
+         /^[a-fA-F0-9]{24}$/.test(value.$oid)
+}
+
+function isEJSONDate(value: any): boolean {
+  return value &&
+         typeof value === 'object' &&
+         Object.keys(value).length === 1 &&
+         Object.prototype.hasOwnProperty.call(value, '$date') &&
+         (typeof value.$date === 'string' || typeof value.$date === 'number')
+}
+
+function isEJSONBinary(value: any): boolean {
+  return value &&
+         typeof value === 'object' &&
+         Object.keys(value).length === 1 &&
+         typeof value.$binary === 'string'
+}
+
+// ============================================================================
 // MongoDB Shell Literal Conversion
 // ============================================================================
 
@@ -938,15 +1060,13 @@ function convertToMongoShellLiteral(value: any, indent: number, seen: WeakSet<ob
     return 'null'
   }
 
-  // EJSON patterns - with validation
-  if (value?.$oid && typeof value.$oid === 'string' && /^[a-fA-F0-9]{24}$/.test(value.$oid)) {
+  // EJSON patterns - with strict validation (must be single-key objects)
+  // PR REVIEW IMPLEMENTED: Check Object.keys().length === 1 to prevent data corruption
+  if (isEJSONObjectId(value)) {
     return `ObjectId("${value.$oid}")`
   }
 
-  if (
-    Object.prototype.hasOwnProperty.call(value || {}, '$date') &&
-    (typeof value.$date === 'string' || typeof value.$date === 'number')
-  ) {
+  if (isEJSONDate(value)) {
     // PR REVIEW IMPLEMENTED: Use Number() for reliable parsing across JS engines
     // Also validate with isNaN() to prevent crashes on invalid dates
     const date = new Date(Number(value.$date))
@@ -959,7 +1079,7 @@ function convertToMongoShellLiteral(value: any, indent: number, seen: WeakSet<ob
     return `ISODate("${value.toISOString()}")`
   }
 
-  if (value?.$binary && typeof value.$binary === 'string') {
+  if (isEJSONBinary(value)) {
     return `BinData(0, "${value.$binary}")`
   }
 
@@ -1223,22 +1343,18 @@ function detectPrimitiveType(value: any): string {
   if (value === undefined) return 'undefined'
 
   // 2. EJSON patterns (MongoDB Extended JSON)
+  // PR REVIEW IMPLEMENTED: Check Object.keys().length === 1 to prevent misidentification
+  // Objects like {$date: 123, foo: "bar"} are NOT EJSON - they're literal objects
   if (value && typeof value === 'object') {
-    // Validate $oid: must be a 24-character hex string
-    if (
-      typeof value.$oid === 'string' &&
-      /^[a-fA-F0-9]{24}$/.test(value.$oid)
-    ) {
+    if (isEJSONObjectId(value)) {
       return 'ObjectId'
     }
-    // Validate $date: must be a string or number
-    if (
-      Object.prototype.hasOwnProperty.call(value, '$date') &&
-      (typeof value.$date === 'string' || typeof value.$date === 'number')
-    ) {
+    if (isEJSONDate(value)) {
       return 'Date'
     }
-    if (value.$binary && typeof value.$binary === 'string') return 'Buffer'
+    if (isEJSONBinary(value)) {
+      return 'Buffer'
+    }
   }
 
   // 3. Date instance (before typeof object check)
@@ -1274,12 +1390,13 @@ export function flattenObject(obj: any, prefix = ''): Record<string, any> {
     const newKey = prefix ? `${prefix}.${key}` : key
 
     // Check if nested object (not EJSON, not array, not Date)
+    // PR REVIEW IMPLEMENTED: Use helper functions with Object.keys().length === 1 check
     const isNestedObject = value && typeof value === 'object' &&
                           !Array.isArray(value) &&
                           !(value instanceof Date) &&
-                          !(value as any).$oid &&
-                          !('$date' in value) &&
-                          !(value as any).$binary
+                          !isEJSONObjectId(value) &&
+                          !isEJSONDate(value) &&
+                          !isEJSONBinary(value)
 
     if (isNestedObject) {
       Object.assign(flattened, flattenObject(value, newKey))
@@ -1346,22 +1463,20 @@ function formatValueForCSV(value: any): string {
 
   if (value instanceof Date) return value.toISOString()
 
-  // EJSON patterns - with validation
-  if (
-    Object.prototype.hasOwnProperty.call(value || {}, '$date') &&
-    (typeof value.$date === 'string' || typeof value.$date === 'number')
-  ) {
+  // EJSON patterns - with strict validation (must be single-key objects)
+  // PR REVIEW IMPLEMENTED: Use helper functions with Object.keys().length === 1 check
+  if (isEJSONDate(value)) {
     const date = new Date(Number(value.$date))
     return !isNaN(date.getTime()) ? date.toISOString() : JSON.stringify(value)
   }
 
-  if (value?.$oid && typeof value.$oid === 'string' && /^[a-fA-F0-9]{24}$/.test(value.$oid)) {
+  if (isEJSONObjectId(value)) {
     return value.$oid
   }
 
-  // Use EJSON.stringify for objects/arrays to preserve nested EJSON types
-  if (Array.isArray(value)) return EJSON.stringify(value)
-  if (typeof value === 'object') return EJSON.stringify(value)
+  // Use safeEJSONStringify for objects/arrays to preserve nested EJSON types with depth checks
+  if (Array.isArray(value)) return safeEJSONStringify(value)
+  if (typeof value === 'object') return safeEJSONStringify(value)
 
   return String(value)
 }

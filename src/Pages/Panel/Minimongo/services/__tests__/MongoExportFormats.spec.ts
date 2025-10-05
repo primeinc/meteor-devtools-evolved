@@ -634,3 +634,126 @@ describe('MongoExportFormats - Category Field', () => {
     })
   })
 })
+
+describe('MongoExportFormats - EJSON Validation (PR #21)', () => {
+  // Tests for HIGH priority issue: EJSON objects must have exactly ONE key
+  // Multi-key objects like {$date: 123, foo: "bar"} are NOT EJSON - they're literal objects
+
+  describe('Multi-key objects should NOT be treated as EJSON', () => {
+    it('MONGO_SHELL: should NOT convert multi-key $date object to ISODate', () => {
+      const docs = [{ multiKey: { $date: 1234567890000, foo: 'bar' } }]
+      const result = MONGO_SHELL.formatter({
+        documents: docs,
+        collectionName: 'test',
+      })
+
+      // Should treat as literal object, not convert to ISODate
+      expect(result).not.toContain('ISODate')
+      expect(result).toContain('$date')
+      expect(result).toContain('foo')
+    })
+
+    it('MONGO_SHELL: should NOT convert multi-key $oid object to ObjectId', () => {
+      const docs = [{ multiKey: { $oid: '507f1f77bcf86cd799439011', foo: 'bar' } }]
+      const result = MONGO_SHELL.formatter({
+        documents: docs,
+        collectionName: 'test',
+      })
+
+      // Should treat as literal object, not convert to ObjectId
+      expect(result).not.toContain('ObjectId')
+      expect(result).toContain('$oid')
+      expect(result).toContain('foo')
+    })
+
+    it('MONGO_SHELL: should NOT convert multi-key $binary object to BinData', () => {
+      const docs = [{ multiKey: { $binary: 'SGVsbG8=', foo: 'bar' } }]
+      const result = MONGO_SHELL.formatter({
+        documents: docs,
+        collectionName: 'test',
+      })
+
+      // Should treat as literal object, not convert to BinData
+      expect(result).not.toContain('BinData')
+      expect(result).toContain('$binary')
+      expect(result).toContain('foo')
+    })
+
+    it('TypeScript: should infer multi-key $date object as plain object, not Date', () => {
+      const docs = [{ multiKey: { $date: 1234567890000, foo: 'bar' } }]
+      const result = TYPESCRIPT_INTERFACE.formatter({
+        documents: docs,
+        collectionName: 'test',
+      })
+
+      // Should NOT map to Date type
+      expect(result).not.toContain('multiKey: Date')
+      expect(result).not.toContain('multiKey?: Date')
+      // Should be treated as object
+      expect(result).toContain('multiKey:')
+    })
+
+    it('Mongoose: should infer multi-key $date object as Mixed, not Date', () => {
+      const docs = [{ multiKey: { $date: 1234567890000, foo: 'bar' } }]
+      const result = MONGOOSE_SCHEMA.formatter({
+        documents: docs,
+        collectionName: 'test',
+      })
+
+      // Should NOT map to Date type
+      expect(result).not.toContain('type: Date')
+      // Should be treated as nested object or Mixed
+      expect(result).toContain('multiKey:')
+    })
+
+    it('CSV: should flatten multi-key $date object fields, not convert to ISO string', () => {
+      const docs = [{ multiKey: { $date: 1234567890000, foo: 'bar' } }]
+      const result = CSV.formatter({
+        documents: docs,
+        collectionName: 'test',
+      })
+
+      // Should flatten the object (multiKey.$date and multiKey.foo columns)
+      expect(result).toContain('multiKey.$date')
+      expect(result).toContain('multiKey.foo')
+      expect(result).toContain('1234567890000')
+      expect(result).toContain('bar')
+    })
+  })
+
+  describe('Single-key EJSON objects should be handled correctly', () => {
+    it('MONGO_SHELL: should convert single-key $date to ISODate', () => {
+      const docs = [{ validDate: { $date: 1234567890000 } }]
+      const result = MONGO_SHELL.formatter({
+        documents: docs,
+        collectionName: 'test',
+      })
+
+      expect(result).toContain('ISODate')
+      expect(result).not.toContain('$date')
+    })
+
+    it('TypeScript: should infer single-key $date as Date', () => {
+      const docs = [{ validDate: { $date: 1234567890000 } }]
+      const result = TYPESCRIPT_INTERFACE.formatter({
+        documents: docs,
+        collectionName: 'test',
+      })
+
+      expect(result).toContain('validDate: Date')
+    })
+
+    it('CSV: should NOT flatten single-key $date (treat as atomic value)', () => {
+      const docs = [{ validDate: { $date: 1234567890000 } }]
+      const result = CSV.formatter({
+        documents: docs,
+        collectionName: 'test',
+      })
+
+      // Should NOT create validDate.$date column (atomic EJSON value)
+      expect(result).not.toContain('validDate.$date')
+      // Should have validDate column with ISO string
+      expect(result).toContain('validDate')
+    })
+  })
+})

@@ -7,6 +7,7 @@ import prettyBytes from 'pretty-bytes'
 import { mapValues } from '@/Utils/Objects'
 import { BridgeAdapter } from '@/Utils/BridgeAdapter'
 import { ExportService } from '@/Pages/Panel/Minimongo/services/ExportService'
+import { ExportFormatKey } from '@/Pages/Panel/Minimongo/services/MongoExportFormats'
 import { createLogger } from '@/Utils/Logger'
 
 const logger = createLogger('MinimongoStore')
@@ -141,6 +142,8 @@ export class MinimongoStore {
   /**
    * Export active collection (or all collections if none selected) with optional data refresh
    *
+   * PR REVIEW IMPLEMENTED: Use union type for format parameter instead of string
+   *
    * @param exportType - Export format key. Supported formats:
    *   - Data formats: 'mongo-import-ndjson', 'mongo-import-array', 'mongo-compass', 'mongo-shell', 'csv'
    *   - Schema formats: 'typescript', 'mongoose', 'json-schema'
@@ -150,7 +153,7 @@ export class MinimongoStore {
    */
   exportActiveCollection = flow(function* (
     this: MinimongoStore,
-    exportType: string,
+    exportType: ExportFormatKey | 'data' | 'schema',
     signal: AbortSignal,
     refreshData: boolean = true,
   ) {

@@ -105,6 +105,9 @@ export const ExportDialog = observer(function ExportDialog(
           setIsFullPreview(false)
         }
       } catch (e: any) {
+        // Log full error for developer debugging
+        console.debug('Export preview error:', e)
+
         // Generic error message is intentional - matches repo pattern
         // REJECTED: PR review suggestion for specific error types (circular refs, EJSON, memory)
         // REASONING:

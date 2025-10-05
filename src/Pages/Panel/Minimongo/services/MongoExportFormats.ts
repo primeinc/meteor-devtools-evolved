@@ -499,7 +499,9 @@ function schemaNodeToTypeScript(node: SchemaNode, totalDocs: number): TypeScript
 
           // Generate union of shapes
           const shapeTypes = shapes.map(shapeInfo => {
-            const shapeProp = schemaNodeToTypeScript(shapeInfo.schema, node.arrayItemCount || 0)
+            // CRITICAL: Use shapeInfo.count (documents with this shape), NOT arrayItemCount (total items)
+            // This ensures required fields are calculated correctly within each shape
+            const shapeProp = schemaNodeToTypeScript(shapeInfo.schema, shapeInfo.count)
             return shapeProp.type
           }).filter(t => t !== '{}')
 
@@ -1072,11 +1074,13 @@ function convertToMongoShellLiteral(value: any, indent: number, seen: WeakSet<ob
   }
 
   if (isEJSONDate(value)) {
-    // PR REVIEW IMPLEMENTED: Use Number() for reliable parsing across JS engines
-    // Also validate with isNaN() to prevent crashes on invalid dates
-    const date = new Date(Number(value.$date))
+    // EJSON dates support two formats:
+    // - Relaxed: {$date: "2024-01-15T10:30:00.000Z"} (ISO string)
+    // - Canonical: {$date: 1705315800000} or {$date: {$numberLong: "..."}} (timestamp)
+    // Date constructor handles both automatically
+    const date = new Date(value.$date)
     // Check for invalid date and provide a safe fallback
-    if (isNaN(date.getTime())) return JSON.stringify(value)
+    if (isNaN(date.getTime())) return `null /* Invalid EJSON date: ${JSON.stringify(value)} */`
     return `ISODate("${date.toISOString()}")`
   }
 
@@ -1235,6 +1239,8 @@ function getObjectSignature(obj: any): string {
 /**
  * Recursively analyze object structure and update schema tree
  *
+ * **IMPORTANT**: This function has SIDE EFFECTS - it modifies the `schema` Map in-place.
+ *
  * Handles:
  * - Nested objects (recursive traversal)
  * - Arrays (with item type detection and distinct shape tracking)
@@ -1242,9 +1248,21 @@ function getObjectSignature(obj: any): string {
  * - Union types (mixed type fields)
  * - Optional vs required fields (based on occurrence count)
  *
- * @param obj - Object to analyze
- * @param schema - Parent schema node's children map
- * @param totalDocs - Total document count for required calculation
+ * Recursive Behavior:
+ * - For nested objects: Recurses into object.children Map
+ * - For arrays of objects: Tracks distinct shapes via getObjectSignature() and recurses into each shape
+ * - For primitives: Adds type to node.types Set and returns
+ *
+ * @param obj - Object to analyze (document or nested object)
+ * @param schema - Parent schema node's children Map (MUTATED IN-PLACE)
+ * @param totalDocs - Total document count for required field calculation (NOT array item count)
+ *
+ * @example
+ * ```typescript
+ * const schema = new Map<string, SchemaNode>()
+ * analyzeObject({user: {name: 'John'}}, schema, 1)
+ * // schema now contains entry for 'user' with nested 'name' field
+ * ```
  */
 function analyzeObject(
   obj: any,
@@ -1471,7 +1489,8 @@ function formatValueForCSV(value: any): string {
   // EJSON patterns - with strict validation (must be single-key objects)
   // PR REVIEW IMPLEMENTED: Use helper functions with Object.keys().length === 1 check
   if (isEJSONDate(value)) {
-    const date = new Date(Number(value.$date))
+    // Date constructor handles both ISO strings and numeric timestamps
+    const date = new Date(value.$date)
     return !isNaN(date.getTime()) ? date.toISOString() : JSON.stringify(value)
   }
 
@@ -1537,14 +1556,5 @@ export function inferSchema(
 // Exports
 // ============================================================================
 
-export default {
-  ALL_FORMATS,
-  MONGO_IMPORT_NDJSON,
-  MONGO_IMPORT_ARRAY,
-  MONGO_COMPASS,
-  MONGO_SHELL,
-  TYPESCRIPT_INTERFACE,
-  MONGOOSE_SCHEMA,
-  JSON_SCHEMA,
-  CSV,
-}
+// All exports are named exports - no default export needed
+// All consumers use: import { ALL_FORMATS, MONGO_SHELL, ... } from './MongoExportFormats'

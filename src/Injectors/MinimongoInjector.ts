@@ -5,6 +5,16 @@ import throttle from 'lodash.throttle'
 const logger = createLogger('MinimongoInjector')
 
 /**
+ * Get EJSON library from window (handles different Meteor versions)
+ * PR REVIEW IMPLEMENTED: Extract to utility to avoid duplication
+ *
+ * @returns EJSON library or undefined if not found
+ */
+function getEJSON(): any | undefined {
+  return (window as any).EJSON || (window as any).Package?.ejson?.EJSON
+}
+
+/**
  * Log serialization errors with consistent messaging
  * PR REVIEW IMPLEMENTED: Extract error handling to avoid double try-catch pattern
  */
@@ -39,8 +49,7 @@ function logSerializationError(e: any, context: 'EJSON' | 'JSON') {
  * - REJECTED: PR review suggestion to export for testing (anti-pattern)
  */
 function cloneDeepWithEJSON(obj: any) {
-  // Try to find EJSON in multiple locations (handles different Meteor versions)
-  const EJSON = (window as any).EJSON || (window as any).Package?.ejson?.EJSON
+  const EJSON = getEJSON()
 
   if (EJSON) {
     // PR REVIEW IMPLEMENTED: Log which location EJSON was found for debugging

@@ -84,13 +84,13 @@ export function safeCollectionAccessor(name: string): string {
  */
 export function escapeMongoShellString(str: string): string {
   return str
-    .replace(/\\/g, '\\\\')        // Backslashes MUST be first!
-    .replace(/"/g, '\\"')          // Escape quotes
-    .replace(/\n/g, '\\n')         // Escape newlines
-    .replace(/\r/g, '\\r')         // Escape carriage returns
-    .replace(/\t/g, '\\t')         // Escape tabs
-    .replace(/\f/g, '\\f')         // Escape form feed
-    .replace(/[\b]/g, '\\b')       // Escape backspace (use character class to avoid word boundary)
-    .replace(/\v/g, '\\v')         // Escape vertical tab
-    .replace(/\0/g, '')            // Remove null bytes (MongoDB forbidden)
+    .replace(/\\/g, '\\\\') // Backslashes MUST be first!
+    .replace(/"/g, '\\"') // Escape quotes
+    .replace(/\n/g, '\\n') // Escape newlines
+    .replace(/\r/g, '\\r') // Escape carriage returns
+    .replace(/\t/g, '\\t') // Escape tabs
+    .replace(/\f/g, '\\f') // Escape form feed
+    .replace(/[\b]/g, '\\b') // Escape backspace (use character class to avoid word boundary)
+    .replace(/\v/g, '\\v') // Escape vertical tab
+    .replace(/\0/g, '') // Remove null bytes (MongoDB forbidden)
 }

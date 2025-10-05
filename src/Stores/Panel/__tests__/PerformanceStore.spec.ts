@@ -62,10 +62,8 @@ describe('PerformanceStore', () => {
       expect(callData).toBeDefined()
       expect(callData?.calls).toBe(2)
       expect(callData?.runtime).toBe(30)
-      // Note: There's a bug in PerformanceStore.push() at line 57
-      // It divides by existingData.calls instead of (existingData.calls + 1)
-      // So the average is actually 30 / 1 = 30, not 30 / 2 = 15
-      expect(callData?.averageRuntime).toBe(30)
+      // The average should be (10 + 20) / 2 = 15
+      expect(callData?.averageRuntime).toBe(15)
     })
 
     it('should track updatedAt timestamp', async () => {
@@ -311,9 +309,8 @@ describe('PerformanceStore', () => {
 
       expect(callData?.calls).toBe(3)
       expect(callData?.runtime).toBe(60)
-      // Note: Bug in PerformanceStore - divides by existingData.calls not (calls + 1)
-      // 60 / 2 = 30 (should be 60 / 3 = 20)
-      expect(callData?.averageRuntime).toBe(30)
+      // The average should be (10 + 20 + 30) / 3 = 20
+      expect(callData?.averageRuntime).toBe(20)
     })
   })
 

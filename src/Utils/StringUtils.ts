@@ -15,7 +15,7 @@ export namespace StringUtils {
    * Five levels of brightness from 1 to 5.
    * Uses cryptographically secure random for consistency across codebase.
    *
-   * @param brightness
+   * @param brightness - Brightness level from 1 to 5
    */
   export const getRandomColor = (brightness: number) => {
     if (brightness < 1 || brightness > 5)
@@ -47,6 +47,9 @@ export namespace StringUtils {
 
   export const getSize = memoize((content: string) => new Blob([content]).size)
 
+  /**
+   *
+   */
   export function getPrefixedClass(className) {
     return `${classPrefix}-${className}`
   }

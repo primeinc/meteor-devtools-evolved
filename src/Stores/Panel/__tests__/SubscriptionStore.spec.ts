@@ -4,8 +4,15 @@
  * Tests for subscription management and filtering
  */
 
-import { SubscriptionStore } from '../SubscriptionStore'
-import { PanelStore } from '@/Stores/PanelStore'
+// Mock Logger first
+jest.mock('@/Utils/Logger', () => ({
+  createLogger: jest.fn(() => ({
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  })),
+}))
 
 // Mock PanelStore
 jest.mock('@/Stores/PanelStore', () => ({
@@ -21,13 +28,22 @@ jest.mock('@/Stores/PanelStore', () => ({
   },
 }))
 
+import { SubscriptionStore } from '../SubscriptionStore'
+import { PanelStore } from '@/Stores/PanelStore'
+
 describe('SubscriptionStore', () => {
   let store: SubscriptionStore
 
   beforeEach(() => {
+    jest.useFakeTimers()
     store = new SubscriptionStore()
     // Reset mocks
     jest.clearAllMocks()
+  })
+
+  afterEach(() => {
+    jest.runAllTimers()
+    jest.useRealTimers()
   })
 
   describe('initialization', () => {
@@ -151,7 +167,7 @@ describe('SubscriptionStore', () => {
   })
 
   describe('search functionality', () => {
-    it('should update search term and reset page', async () => {
+    it('should update search term and reset page', () => {
       store.collection = [
         { id: 'sub1', name: 'users', params: [] } as any,
         { id: 'sub2', name: 'posts', params: [] } as any,
@@ -162,8 +178,8 @@ describe('SubscriptionStore', () => {
       // setSearch is debounced
       store.setSearch('users')
 
-      // Wait for debounce
-      await new Promise(resolve => setTimeout(resolve, 300))
+      // Advance timers to run debounced setSearch
+      jest.runAllTimers()
 
       expect(store.search).toBe('users')
       expect(store.currentPage).toBe(1)

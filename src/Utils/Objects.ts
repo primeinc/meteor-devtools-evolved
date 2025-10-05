@@ -1,5 +1,8 @@
 export const isObject = (value: any) => typeof value === 'object'
 
+/**
+ *
+ */
 export function omit(object, keys) {
   return Object.keys(object).reduce((result, key) => {
     if (!keys.includes(key)) {
@@ -10,6 +13,9 @@ export function omit(object, keys) {
   }, {})
 }
 
+/**
+ *
+ */
 export function mapValues(object, fn) {
   return Object.keys(object).reduce((result, key) => {
     result[key] = fn(object[key], key)
@@ -18,10 +24,16 @@ export function mapValues(object, fn) {
   }, {})
 }
 
+/**
+ *
+ */
 export function flatten(array) {
   return array.reduce((result, item) => result.concat(item), [])
 }
 
+/**
+ *
+ */
 export function compact(array) {
   return array.filter(Boolean)
 }

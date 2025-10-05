@@ -21,6 +21,9 @@ export type GridItem = {
   description?: string
 }
 
+/**
+ *
+ */
 export function PartnersGrid({ items, className = '' }) {
   return (
     <ul

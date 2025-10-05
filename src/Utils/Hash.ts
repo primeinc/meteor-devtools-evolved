@@ -2,7 +2,12 @@
  * Cryptographic hash utilities using Web Crypto API
  */
 
-export async function sha256Hex(bytes: Uint8Array<ArrayBuffer>): Promise<string> {
+/**
+ *
+ */
+export async function sha256Hex(
+  bytes: Uint8Array<ArrayBuffer>,
+): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', bytes)
   const arr = new Uint8Array(digest)
   return Array.from(arr)

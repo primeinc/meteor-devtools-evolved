@@ -118,6 +118,7 @@ describe('ExportService', () => {
 })
 
 describe('inferSchema', () => {
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
   const noop = () => {}
   const signal = new AbortController().signal
 
@@ -133,7 +134,7 @@ describe('inferSchema', () => {
         additionalProperties: false,
         type: 'object',
         properties: {},
-        required: []
+        required: [],
       })
     })
   })
@@ -252,10 +253,7 @@ describe('inferSchema', () => {
     })
 
     it('should merge nested objects with different keys', () => {
-      const docs = [
-        { user: { name: 'Alice' } },
-        { user: { age: 30 } },
-      ]
+      const docs = [{ user: { name: 'Alice' } }, { user: { age: 30 } }]
       const schema = inferSchema(docs, noop, signal)
 
       const userProp = schema.properties.user as any
@@ -363,7 +361,14 @@ describe('inferSchema', () => {
     })
 
     it('should collapse nested arrays', () => {
-      const docs = [{ matrix: [[1, 2], [3, 4]] }]
+      const docs = [
+        {
+          matrix: [
+            [1, 2],
+            [3, 4],
+          ],
+        },
+      ]
       const schema = inferSchema(docs, noop, signal)
 
       expect(schema.properties.matrix).toEqual({ type: 'array' })
@@ -438,7 +443,9 @@ describe('inferSchema', () => {
       ]
       const schema = inferSchema(docs, noop, signal)
 
-      expect(schema.$schema).toBe('https://json-schema.org/draft/2020-12/schema')
+      expect(schema.$schema).toBe(
+        'https://json-schema.org/draft/2020-12/schema',
+      )
       expect(schema.type).toBe('object')
       const _idProp = schema.properties._id as any
       const userProp = schema.properties.user as any

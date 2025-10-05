@@ -29,35 +29,55 @@ describe('Logger', () => {
       const logger = new Logger('TestContext')
       logger.debug('test message', { foo: 'bar' })
 
-      expect(consoleDebugSpy).toHaveBeenCalledWith('[TestContext]', 'test message', { foo: 'bar' })
+      expect(consoleDebugSpy).toHaveBeenCalledWith(
+        '[TestContext]',
+        'test message',
+        { foo: 'bar' },
+      )
     })
 
     it('should log info messages with context prefix', () => {
       const logger = new Logger('TestContext')
       logger.info('test message')
 
-      expect(consoleInfoSpy).toHaveBeenCalledWith('[TestContext]', 'test message')
+      expect(consoleInfoSpy).toHaveBeenCalledWith(
+        '[TestContext]',
+        'test message',
+      )
     })
 
     it('should log warn messages with context prefix', () => {
       const logger = new Logger('TestContext')
       logger.warn('warning message')
 
-      expect(consoleWarnSpy).toHaveBeenCalledWith('[TestContext]', 'warning message')
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        '[TestContext]',
+        'warning message',
+      )
     })
 
     it('should log error messages with context prefix', () => {
       const logger = new Logger('TestContext')
       logger.error('error message', new Error('test'))
 
-      expect(consoleErrorSpy).toHaveBeenCalledWith('[TestContext]', 'error message', expect.any(Error))
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        '[TestContext]',
+        'error message',
+        expect.any(Error),
+      )
     })
 
     it('should handle multiple arguments', () => {
       const logger = new Logger('TestContext')
       logger.info('message', 'arg1', 'arg2', { foo: 'bar' })
 
-      expect(consoleInfoSpy).toHaveBeenCalledWith('[TestContext]', 'message', 'arg1', 'arg2', { foo: 'bar' })
+      expect(consoleInfoSpy).toHaveBeenCalledWith(
+        '[TestContext]',
+        'message',
+        'arg1',
+        'arg2',
+        { foo: 'bar' },
+      )
     })
 
     it('should use correct log level methods', () => {
@@ -84,7 +104,10 @@ describe('Logger', () => {
       logger2.info('from store')
 
       expect(consoleInfoSpy).toHaveBeenCalledWith('[Export]', 'from export')
-      expect(consoleInfoSpy).toHaveBeenCalledWith('[MinimongoStore]', 'from store')
+      expect(consoleInfoSpy).toHaveBeenCalledWith(
+        '[MinimongoStore]',
+        'from store',
+      )
     })
   })
 })

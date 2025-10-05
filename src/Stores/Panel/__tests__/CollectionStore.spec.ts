@@ -4,13 +4,29 @@
  * Tests for individual collection document management
  */
 
+// Mock Logger first
+jest.mock('@/Utils/Logger', () => ({
+  createLogger: jest.fn(() => ({
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  })),
+}))
+
 import { CollectionStore } from '../MinimongoStore/CollectionStore'
 
 describe('CollectionStore', () => {
   let store: CollectionStore
 
   beforeEach(() => {
+    jest.useFakeTimers()
     store = new CollectionStore()
+  })
+
+  afterEach(() => {
+    jest.runAllTimers()
+    jest.useRealTimers()
   })
 
   describe('initialization', () => {
@@ -198,13 +214,13 @@ describe('CollectionStore', () => {
   })
 
   describe('search functionality', () => {
-    it('should update search term and reset page', async () => {
+    it('should update search term and reset page', () => {
       store.currentPage = 2
 
       store.setSearch('test')
 
-      // Wait for debounce
-      await new Promise(resolve => setTimeout(resolve, 300))
+      // Advance timers to run debounced setSearch
+      jest.runAllTimers()
 
       expect(store.search).toBe('test')
       expect(store.currentPage).toBe(1)

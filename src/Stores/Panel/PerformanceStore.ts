@@ -47,6 +47,7 @@ export class PerformanceStore<T> {
       const existingData = this.callMap.get(key)
 
       const runtime = (existingData?.runtime ?? 0) + data.runtime
+      const calls = existingData.calls + 1
 
       this.callMap.set(key, {
         collectionName: data.collectionName,
@@ -54,9 +55,9 @@ export class PerformanceStore<T> {
         method: data.key,
         args: data.args,
         runtime,
-        averageRuntime: runtime / existingData.calls,
+        averageRuntime: runtime / calls,
         updatedAt: Date.now(),
-        calls: existingData.calls + 1,
+        calls,
       })
     } else {
       this.callMap.set(key, {

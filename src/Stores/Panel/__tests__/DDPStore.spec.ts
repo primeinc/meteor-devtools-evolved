@@ -4,8 +4,15 @@
  * Tests for core DDP message storage and subscription lifecycle tracking
  */
 
-import { DDPStore } from '../DDPStore'
-import { PanelStore } from '@/Stores/PanelStore'
+// Mock Logger first
+jest.mock('@/Utils/Logger', () => ({
+  createLogger: jest.fn(() => ({
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  })),
+}))
 
 // Mock dependencies
 jest.mock('@/Bridge', () => ({
@@ -24,10 +31,14 @@ jest.mock('@/Utils/MessageFormatter', () => ({
   generatePreview: jest.fn(content => `preview: ${content}`),
 }))
 
+import { DDPStore } from '../DDPStore'
+import { PanelStore } from '@/Stores/PanelStore'
+
 describe('DDPStore', () => {
   let store: DDPStore
 
   beforeEach(() => {
+    jest.clearAllMocks()
     store = new DDPStore()
     // Reset mock
     PanelStore.settingStore.activeFilterBlacklist = []
@@ -43,7 +54,8 @@ describe('DDPStore', () => {
   })
 
   describe('pushItem', () => {
-    it('should add log to buffer and process it', async () => {
+    it('should add log to buffer and process it', () => {
+      jest.useFakeTimers()
       const log: any = {
         id: 'log1',
         content: '{"msg":"ping"}',
@@ -55,10 +67,13 @@ describe('DDPStore', () => {
 
       store.pushItem(log)
 
-      // Wait for debounced submitLogs to execute
-      await new Promise(resolve => setTimeout(resolve, 150))
+      // Advance timers to run all debounced functions like submitLogs and setLoadingState
+      jest.runAllTimers()
 
       expect(store.collection.length).toBeGreaterThan(0)
+      expect(store.isLoading).toBe(false)
+
+      jest.useRealTimers()
     })
 
     it('should track inbound bytes via bufferCallback', () => {
@@ -111,7 +126,9 @@ describe('DDPStore', () => {
   })
 
   describe('clearLogs', () => {
-    it('should clear all logs and reset byte counters', async () => {
+    it('should clear all logs and reset byte counters', () => {
+      jest.useFakeTimers()
+
       // Add some logs
       store.pushItem({
         id: 'log1',
@@ -122,7 +139,8 @@ describe('DDPStore', () => {
         size: 100,
       } as any)
 
-      await new Promise(resolve => setTimeout(resolve, 150))
+      // Advance timers to process buffered logs
+      jest.runAllTimers()
 
       // Clear logs
       store.clearLogs()
@@ -130,6 +148,8 @@ describe('DDPStore', () => {
       expect(store.collection).toEqual([])
       expect(store.inboundBytes).toBe(0)
       expect(store.outboundBytes).toBe(0)
+
+      jest.useRealTimers()
     })
   })
 

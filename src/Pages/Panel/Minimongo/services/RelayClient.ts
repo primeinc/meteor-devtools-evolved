@@ -65,7 +65,9 @@ export class RelayClient {
           const retryCount = backpressureRetry ?? 0
           const delay = calculateBackoffDelay(retryCount)
           logger.debug(
-            `Backpressure received, retrying in ${delay}ms (attempt ${retryCount + 1})`,
+            `Backpressure received, retrying in ${delay}ms (attempt ${
+              retryCount + 1
+            })`,
           )
           reject({ isBackpressure: true, retryCount, delay })
           return

@@ -1,10 +1,11 @@
 const { merge } = require('lodash')
 
 module.exports = merge(require('@tstt/eslint-config/index.js'), {
-  plugins: ['jsdoc'],
+  plugins: ['jsdoc', 'react-hooks'],
   rules: {
     'global-require': 0,
     '@typescript-eslint/no-var-requires': 0,
+    '@typescript-eslint/no-extra-semi': 0, // Conflicts with prettier
     '@typescript-eslint/no-inferrable-types': [
       2,
       {
@@ -36,5 +37,13 @@ module.exports = merge(require('@tstt/eslint-config/index.js'), {
     'jsdoc/check-tag-names': 'error',
     'jsdoc/check-types': 'error',
   },
+  overrides: [
+    {
+      files: ['*.ts', '*.tsx'],
+      rules: {
+        '@typescript-eslint/no-extra-semi': 0, // Conflicts with prettier
+      },
+    },
+  ],
   globals: { Meteor: 'readonly', i18n: 'readonly' },
 })

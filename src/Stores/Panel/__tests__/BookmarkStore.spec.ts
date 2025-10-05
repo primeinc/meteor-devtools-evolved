@@ -4,9 +4,15 @@
  * Tests for bookmark management and persistence
  */
 
-import { BookmarkStore } from '../BookmarkStore'
-import { PanelStore } from '@/Stores/PanelStore'
-import { PanelDatabase } from '@/Database/PanelDatabase'
+// Mock Logger first
+jest.mock('@/Utils/Logger', () => ({
+  createLogger: jest.fn(() => ({
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  })),
+}))
 
 // Mock PanelDatabase
 jest.mock('@/Database/PanelDatabase', () => ({
@@ -27,13 +33,23 @@ jest.mock('@/Stores/PanelStore', () => ({
   },
 }))
 
+import { BookmarkStore } from '../BookmarkStore'
+import { PanelStore } from '@/Stores/PanelStore'
+import { PanelDatabase } from '@/Database/PanelDatabase'
+
 describe('BookmarkStore', () => {
   let store: BookmarkStore
 
   beforeEach(() => {
+    jest.useFakeTimers()
     jest.clearAllMocks()
     store = new BookmarkStore()
     PanelStore.settingStore.activeFilterBlacklist = []
+  })
+
+  afterEach(() => {
+    jest.runAllTimers()
+    jest.useRealTimers()
   })
 
   describe('initialization', () => {
@@ -301,13 +317,13 @@ describe('BookmarkStore', () => {
   })
 
   describe('search functionality', () => {
-    it('should update search and reset page', async () => {
+    it('should update search and reset page', () => {
       store.currentPage = 2
 
       store.setSearch('test')
 
-      // Wait for debounce (250ms)
-      await new Promise(resolve => setTimeout(resolve, 300))
+      // Advance timers to run debounced setSearch
+      jest.runAllTimers()
 
       expect(store.search).toBe('test')
       expect(store.currentPage).toBe(1)

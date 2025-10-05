@@ -23,8 +23,14 @@ export function generateSecureRandomString(length = 16): string {
  */
 export function generateSecureUUID(): string {
   // Use optional chaining for simpler crypto.randomUUID availability check and fallback
-  return (globalThis.crypto as any)?.randomUUID?.() ||
-    `${generateSecureRandomString(4)}-${generateSecureRandomString(2)}-${generateSecureRandomString(2)}-${generateSecureRandomString(2)}-${generateSecureRandomString(6)}`
+  return (
+    (globalThis.crypto as any)?.randomUUID?.() ||
+    `${generateSecureRandomString(4)}-${generateSecureRandomString(
+      2,
+    )}-${generateSecureRandomString(2)}-${generateSecureRandomString(
+      2,
+    )}-${generateSecureRandomString(6)}`
+  )
 }
 
 /**

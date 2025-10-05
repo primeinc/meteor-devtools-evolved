@@ -91,13 +91,17 @@ describe('SettingStore', () => {
     })
 
     it('should handle fetch errors gracefully', async () => {
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation()
       global.fetch = jest.fn().mockRejectedValue(new Error('Network error'))
 
       // Should not throw
       expect(() => store.updateRepositoryData()).not.toThrow()
+
+      consoleErrorSpy.mockRestore()
     })
 
     it('should not update with invalid data', async () => {
+      const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation()
       const invalidData = {
         name: 'meteor-devtools-evolved',
         // Missing stargazers_count and open_issues_count
@@ -114,6 +118,8 @@ describe('SettingStore', () => {
 
       // Should not update if data is invalid
       expect(store.repositoryData).toBe(initialData)
+
+      consoleLogSpy.mockRestore()
     })
   })
 

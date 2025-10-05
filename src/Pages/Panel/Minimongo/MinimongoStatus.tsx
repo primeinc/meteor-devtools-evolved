@@ -45,7 +45,10 @@ export const MinimongoStatus: FunctionComponent = observer(() => {
 
         <Button
           icon='export'
-          disabled={!minimongoStore.collectionNames.length || minimongoStore.isExportBusy}
+          disabled={
+            !minimongoStore.collectionNames.length ||
+            minimongoStore.isExportBusy
+          }
           onClick={() => minimongoStore.toggleExportDialog(true)}
         >
           Export

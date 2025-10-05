@@ -21,18 +21,20 @@ const popupElement = document.getElementById('popup')
 console.log('=== METEOR DEVTOOLS: Elements found ===', {
   panel: !!panelElement,
   options: !!optionsElement,
-  popup: !!popupElement
+  popup: !!popupElement,
 })
 
 // Error boundary component for visible errors
 const ErrorDisplay = ({ error }: { error: Error }) => (
-  <div style={{
-    padding: '20px',
-    background: '#ff4444',
-    color: 'white',
-    fontFamily: 'monospace',
-    whiteSpace: 'pre-wrap'
-  }}>
+  <div
+    style={{
+      padding: '20px',
+      background: '#ff4444',
+      color: 'white',
+      fontFamily: 'monospace',
+      whiteSpace: 'pre-wrap',
+    }}
+  >
     <h2>Panel Failed to Load</h2>
     <p>{error.toString()}</p>
     <pre>{error.stack}</pre>
@@ -49,7 +51,10 @@ if (panelElement) {
     console.error('=== METEOR DEVTOOLS: Failed to render panel ===', error)
     render(<ErrorDisplay error={error as Error} />, panelElement)
   }
-} else if (document.body && window.location.href.includes('devtools-panel.html')) {
+} else if (
+  document.body &&
+  window.location.href.includes('devtools-panel.html')
+) {
   // If we're on the panel page but no element found, show error
   document.body.innerHTML = `
     <div style="padding:20px;background:orange;color:black;font-family:monospace">

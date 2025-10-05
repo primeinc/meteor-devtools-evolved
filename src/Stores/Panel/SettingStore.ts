@@ -28,6 +28,8 @@ export class SettingStore implements ISettings {
     connection: true,
   }
 
+  @observable isQueryStackTraceEnabled = false
+
   constructor() {
     makeObservable(this)
 
@@ -98,5 +100,10 @@ export class SettingStore implements ISettings {
         }),
       ),
     )
+  }
+
+  @action
+  setQueryStackTraceEnabled(enabled: boolean) {
+    this.isQueryStackTraceEnabled = enabled
   }
 }

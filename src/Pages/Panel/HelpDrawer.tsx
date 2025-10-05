@@ -1,10 +1,12 @@
-import { Classes, Drawer, DrawerSize, Icon } from '@blueprintjs/core'
+import { Classes, Drawer, DrawerSize, Icon, Checkbox, Callout } from '@blueprintjs/core'
 import React, { FunctionComponent } from 'react'
 import { GridItem, PartnersGrid } from './PartnersGrid'
 import AuthorLogo from '@/Assets/leonardoventurini.png'
 import QuaveLogo from '@/Assets/quave-logo.png'
 import MontiApmLogo from '@/Assets/monti-apm-logo.png'
 import MeteorCloudLogo from '@/Assets/meteor-cloud-logo.png'
+import { usePanelStore } from '@/Stores/PanelStore'
+import { observer } from 'mobx-react-lite'
 
 const people: GridItem[] = [
   {
@@ -61,10 +63,12 @@ interface Props {
 
 const YEAR = new Date().getFullYear()
 
-export const HelpDrawer: FunctionComponent<Props> = ({
+export const HelpDrawer: FunctionComponent<Props> = observer(({
   isHelpDrawerVisible,
   onClose,
 }) => {
+  const { settingStore } = usePanelStore()
+
   return (
     <Drawer
       title={
@@ -87,6 +91,26 @@ export const HelpDrawer: FunctionComponent<Props> = ({
             <div className='section'>
               <h2 className='section-title'>Meteor & Development</h2>
               <PartnersGrid items={orgs} />
+            </div>
+
+            <div className='section'>
+              <h2 className='section-title'>Settings</h2>
+              <Callout intent="none" icon="cog">
+                <div className="space-y-3">
+                  <div>
+                    <Checkbox
+                      checked={settingStore.isQueryStackTraceEnabled}
+                      onChange={(e) => {
+                        settingStore.setQueryStackTraceEnabled(e.currentTarget.checked)
+                      }}
+                      label="Enable Query Stack Traces"
+                    />
+                    <p style={{ fontSize: '0.875rem', color: '#a0aec0', marginTop: '0.25rem', marginLeft: '1.5rem' }}>
+                      Capture stack traces for Minimongo operations. Useful for debugging but may impact performance on high-frequency queries.
+                    </p>
+                  </div>
+                </div>
+              </Callout>
             </div>
 
             <div className='section'>
@@ -218,4 +242,4 @@ export const HelpDrawer: FunctionComponent<Props> = ({
       </div>
     </Drawer>
   )
-}
+})

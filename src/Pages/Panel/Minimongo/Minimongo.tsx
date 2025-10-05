@@ -2,13 +2,22 @@ import { MinimongoNavigator } from '@/Pages/Panel/Minimongo/MinimongoNavigator'
 import { usePanelStore } from '@/Stores/PanelStore'
 import { Hideable } from '@/Utils/Hideable'
 import { observer } from 'mobx-react-lite'
-import React, { FunctionComponent } from 'react'
+import React, { FunctionComponent, useState } from 'react'
 import { MinimongoContainer } from '@/Pages/Panel/Minimongo/MinimongoContainer'
 import styled from 'styled-components'
 import { MinimongoStatus } from '@/Pages/Panel/Minimongo/MinimongoStatus'
 import { Button } from '@/Components/Button'
 import prettyBytes from 'pretty-bytes'
 import { ExportDialog } from '@/Pages/Panel/Minimongo/components/ExportDialog'
+import { QueryLogList } from '@/Pages/Panel/Minimongo/components/QueryLogList'
+import { Tabs, Tab } from '@blueprintjs/core'
+
+type MinimongoTabId = 'collections' | 'queries'
+
+const MINIMONGO_TABS = {
+  COLLECTIONS: 'collections' as MinimongoTabId,
+  QUERIES: 'queries' as MinimongoTabId,
+}
 
 interface Props {
   isVisible: boolean
@@ -16,8 +25,22 @@ interface Props {
 
 const Wrapper = styled.div`
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   height: 100%;
+
+  .tabs-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .content-wrapper {
+    display: flex;
+    flex-direction: row;
+    flex: 1;
+    min-height: 0;
+  }
 
   .sidebar {
     display: flex;
@@ -68,6 +91,7 @@ const Wrapper = styled.div`
 
 export const Minimongo: FunctionComponent<Props> = observer(({ isVisible }) => {
   const { minimongoStore } = usePanelStore()
+  const [activeTab, setActiveTab] = useState<MinimongoTabId>(MINIMONGO_TABS.COLLECTIONS)
 
   const isActiveCollectionMissing =
     minimongoStore.activeCollection &&
@@ -77,39 +101,66 @@ export const Minimongo: FunctionComponent<Props> = observer(({ isVisible }) => {
     minimongoStore.setActiveCollection(null)
   }
 
+  const handleTabChange = (newTabId: string | number) => {
+    // Validate tab ID before setting
+    if (newTabId === MINIMONGO_TABS.COLLECTIONS || newTabId === MINIMONGO_TABS.QUERIES) {
+      setActiveTab(newTabId)
+    }
+  }
+
   return (
     <Hideable isVisible={isVisible}>
       <div className={'mde-content'}>
         <Wrapper>
-          <div className='sidebar'>
-            <nav>
-              {!!minimongoStore.collectionNames.length &&
-                minimongoStore.collectionNames.map(key => (
-                  <Button
-                    key={key}
-                    active={minimongoStore.activeCollection === key}
-                    onClick={() => minimongoStore.setActiveCollection(key)}
-                    subtitle={`${
-                      minimongoStore.getMetadata(key)?.collectionSizePretty
-                    } (${minimongoStore.collections[key]?.length ?? 0})`}
-                    title={key}
-                  >
-                    {key}
-                  </Button>
-                ))}
+          <Tabs
+            id="minimongo-tabs"
+            selectedTabId={activeTab}
+            onChange={handleTabChange}
+            className="tabs-container"
+          >
+            <Tab 
+              id={MINIMONGO_TABS.COLLECTIONS}
+              title="Collections"
+              panel={
+                <div className="content-wrapper">
+                  <div className='sidebar'>
+                    <nav>
+                      {!!minimongoStore.collectionNames.length &&
+                        minimongoStore.collectionNames.map(key => (
+                          <Button
+                            key={key}
+                            active={minimongoStore.activeCollection === key}
+                            onClick={() => minimongoStore.setActiveCollection(key)}
+                            subtitle={`${
+                              minimongoStore.getMetadata(key)?.collectionSizePretty
+                            } (${minimongoStore.collections[key]?.length ?? 0})`}
+                            title={key}
+                          >
+                            {key}
+                          </Button>
+                        ))}
 
-              <Button
-                active={!minimongoStore.activeCollection}
-                onClick={() => minimongoStore.setActiveCollection(null)}
-                subtitle={`${prettyBytes(minimongoStore.totalSize)} (${
-                  minimongoStore.totalDocuments
-                })`}
-              >
-                All Documents
-              </Button>
-            </nav>
-          </div>
-          <MinimongoContainer isVisible={isVisible} />
+                      <Button
+                        active={!minimongoStore.activeCollection}
+                        onClick={() => minimongoStore.setActiveCollection(null)}
+                        subtitle={`${prettyBytes(minimongoStore.totalSize)} (${
+                          minimongoStore.totalDocuments
+                        })`}
+                      >
+                        All Documents
+                      </Button>
+                    </nav>
+                  </div>
+                  <MinimongoContainer isVisible={isVisible} />
+                </div>
+              }
+            />
+            <Tab 
+              id={MINIMONGO_TABS.QUERIES}
+              title="Query Log"
+              panel={<QueryLogList />}
+            />
+          </Tabs>
         </Wrapper>
       </div>
 

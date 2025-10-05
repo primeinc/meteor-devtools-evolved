@@ -37,6 +37,8 @@ type Transfer = {
 }
 const transfers = new Map<string, Transfer>()
 const downloadIdToFilename = new Map<number, string>()
+// NEW: Track blob URLs to filenames (for offscreen downloads where we can't predict download ID)
+const downloadUrlToFilename = new Map<string, string>()
 
 // Transfer lifecycle constants
 const TTL_MS = 120_000 // 2 minutes
@@ -184,10 +186,18 @@ async function downloadViaOffscreen(
         chrome.runtime.onMessage.removeListener(listener)
         // Offscreen doc created blob URL - now download it from background
         const { url, filename: fn } = msg.payload
+
+        // CRITICAL BUG FIX: Chrome ignores `filename` param for blob: URLs
+        // It fires onDeterminingFilename DURING chrome.downloads.download() call (synchronously!)
+        // We must track URL->filename mapping BEFORE calling download()
+        downloadUrlToFilename.set(url, fn)
+
         chrome.downloads.download({ url, filename: fn, saveAs: false }, id => {
           if (chrome.runtime.lastError) {
+            downloadUrlToFilename.delete(url) // Cleanup on error
             reject(new Error(chrome.runtime.lastError.message))
           } else {
+            // Download succeeded - map is cleaned up in onDeterminingFilename listener
             resolve()
           }
         })
@@ -621,33 +631,44 @@ const tabListener = () => {
   })
 }
 
-// Override download filenames for data URLs
+// Override download filenames for data URLs and blob URLs
 chrome.downloads.onDeterminingFilename.addListener((downloadItem, suggest) => {
   exportLogger.debug(
     'onDeterminingFilename called for download ID:',
     downloadItem.id,
   )
 
-  // Check if we have a tracked filename for this download
-  const trackedFilename = downloadIdToFilename.get(downloadItem.id)
+  // PRIORITY 1: Check URL-based tracking (for offscreen blob URLs)
+  // This is checked FIRST because it's set synchronously before download starts
+  const urlTrackedFilename = downloadUrlToFilename.get(downloadItem.url)
+  if (urlTrackedFilename) {
+    exportLogger.debug('Found URL-tracked filename:', urlTrackedFilename)
+    suggest({ filename: urlTrackedFilename })
+    downloadUrlToFilename.delete(downloadItem.url) // Clean up
+    return true
+  }
 
-  if (trackedFilename) {
-    exportLogger.debug('Found tracked filename:', trackedFilename)
-    suggest({ filename: trackedFilename })
-    // Clean up after use
-    downloadIdToFilename.delete(downloadItem.id)
-  } else if (downloadItem.url.startsWith('data:application/json;base64,')) {
-    // Fallback for data URL exports without tracked filename
+  // PRIORITY 2: Check download ID tracking (legacy/fallback)
+  const idTrackedFilename = downloadIdToFilename.get(downloadItem.id)
+  if (idTrackedFilename) {
+    exportLogger.debug('Found ID-tracked filename:', idTrackedFilename)
+    suggest({ filename: idTrackedFilename })
+    downloadIdToFilename.delete(downloadItem.id) // Clean up
+    return true
+  }
+
+  // PRIORITY 3: Fallback for data URL exports without tracking
+  if (downloadItem.url.startsWith('data:application/json;base64,')) {
     exportLogger.debug(
       'Data URL export without tracked filename, using default',
     )
     suggest({ filename: 'export.json' })
-  } else {
-    // Let other downloads proceed normally
-    suggest()
+    return true
   }
 
-  return true // Will call suggest asynchronously
+  // Let other downloads proceed normally (no suggest override)
+  suggest()
+  return true
 })
 
 panelListener()

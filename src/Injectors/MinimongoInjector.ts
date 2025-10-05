@@ -52,8 +52,6 @@ function cloneDeepWithEJSON(obj: any) {
   const EJSON = getEJSON()
 
   if (EJSON) {
-    // PR REVIEW IMPLEMENTED: Log which location EJSON was found for debugging
-    logger.debug('EJSON found at:', (window as any).EJSON ? 'window.EJSON' : 'window.Package.ejson.EJSON')
     try {
       // Serialize with EJSON, then deserialize back to get cloned object with EJSON types
       const serialized = EJSON.stringify(obj)

@@ -25,7 +25,7 @@ type Transfer = {
   filename: string
   mime: string
   expectedHash?: string
-  chunks: Uint8Array[]
+  chunks: Uint8Array<ArrayBuffer>[]
   token: string
   senderId: string
   state: TransferState
@@ -60,7 +60,7 @@ function bytesToBinaryString(bytes: Uint8Array): string {
 }
 
 // Helper: mark transfer as failed and schedule cleanup
-function markFailed(id: string, reason: string, port: chrome.runtime.Port) {
+function markFailed(id: string, reason: string, port: RuntimePort) {
   const t = transfers.get(id)
   if (!t) {
     port.postMessage({ type: 'EXPORT_FAILED', payload: { id, reason } })
@@ -252,8 +252,9 @@ const panelListener = () => {
           }
 
           const bytes = payload.bytes as number[] | Uint8Array
-          const chunkBytes =
-            bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)
+          const chunkBytes = (bytes instanceof Uint8Array
+            ? bytes
+            : new Uint8Array(bytes)) as Uint8Array<ArrayBuffer>
           t.chunks.push(chunkBytes)
           t.lastSeen = Date.now()
           t.inflight++

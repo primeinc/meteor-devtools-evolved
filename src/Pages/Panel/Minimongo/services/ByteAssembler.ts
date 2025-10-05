@@ -7,7 +7,7 @@
 
 export class ByteAssembler {
   private enc = new TextEncoder()
-  private parts: Uint8Array[] = []
+  private parts: Uint8Array<ArrayBuffer>[] = []
   private total = 0
 
   constructor(private hardCapBytes = 250 * 1024 * 1024) {}

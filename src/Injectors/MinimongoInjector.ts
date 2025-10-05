@@ -62,7 +62,7 @@ const getDocs = (collection: any) => {
   }
 }
 
-const getCollections = (requestPayload?: any) => {
+const getCollections = (requestPayload?: object) => {
   const collections = Meteor.connection._mongo_livedata_collections
 
   if (!collections) {
@@ -73,16 +73,16 @@ const getCollections = (requestPayload?: any) => {
   }
 
   const collectionsData = Object.values(collections).reduce(
-    (acc: object, collection: any) =>
-      Object.assign(acc, {
-        [collection.name]: Array.from(getDocs(collection)).map(cleanup),
-      }),
-    {},
+    (acc: Record<string, unknown>, collection: any) => ({
+      ...acc,
+      [collection.name]: Array.from(getDocs(collection)).map(cleanup),
+    }),
+    {} as Record<string, unknown>,
   )
 
   // Echo back any request metadata (e.g., requestId) for correlation
   const response = requestPayload
-    ? { ...requestPayload, ...collectionsData }
+    ? Object.assign({}, requestPayload, collectionsData)
     : collectionsData
 
   sendMessage('minimongo-get-collections', response as any)

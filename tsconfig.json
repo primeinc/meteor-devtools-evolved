@@ -12,6 +12,7 @@
     "sourceMap": true,
     "esModuleInterop": true,
     "jsx": "react",
+    "lib": ["ES2020", "DOM"],
     "baseUrl": "./",
     "paths": {
       "@/*": [
@@ -25,6 +26,7 @@
     "src/**/*.tsx"
   ],
   "exclude": [
+    "node_modules",
     "**/__tests__/**",
     "**/*.spec.ts",
     "**/*.spec.tsx",

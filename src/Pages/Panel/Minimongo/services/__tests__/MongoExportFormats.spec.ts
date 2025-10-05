@@ -299,6 +299,50 @@ describe('MongoExportFormats - EJSON Handling', () => {
 
       expect(result).toContain('avatar?: Buffer')
     })
+
+    it('should handle nested objects correctly', () => {
+      const nestedDocs = [
+        {
+          _id: '1',
+          user: {
+            name: 'Alice',
+            age: 30,
+            address: {
+              city: 'NYC',
+              zip: '10001',
+            },
+          },
+        },
+        {
+          _id: '2',
+          user: {
+            name: 'Bob',
+            age: 25,
+            address: {
+              city: 'LA',
+              zip: '90001',
+            },
+          },
+        },
+      ]
+
+      const result = TYPESCRIPT_INTERFACE.formatter({
+        documents: nestedDocs,
+        collectionName: 'profiles',
+      })
+
+      // Should generate nested interfaces, not flattened dot notation
+      expect(result).toContain('export interface Profiles {')
+      expect(result).toContain('user: {')
+      expect(result).toContain('name: string')
+      expect(result).toContain('age: number')
+      expect(result).toContain('address: {')
+      expect(result).toContain('city: string')
+      expect(result).toContain('zip: string')
+      // Should NOT contain flattened keys like 'user.name'
+      expect(result).not.toContain('user.name')
+      expect(result).not.toContain('user.address.city')
+    })
   })
 
   describe('MONGOOSE_SCHEMA', () => {

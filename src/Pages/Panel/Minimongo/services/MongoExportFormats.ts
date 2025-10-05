@@ -1353,8 +1353,9 @@ function formatValueForCSV(value: any): string {
     return value.$oid
   }
 
-  if (Array.isArray(value)) return JSON.stringify(value)
-  if (typeof value === 'object') return JSON.stringify(value)
+  // Use EJSON.stringify for objects/arrays to preserve nested EJSON types
+  if (Array.isArray(value)) return EJSON.stringify(value)
+  if (typeof value === 'object') return EJSON.stringify(value)
 
   return String(value)
 }

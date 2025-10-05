@@ -17,7 +17,11 @@ import {
   ExportFormat,
   ExportData,
   ExportOptions,
+  inferSchema,
 } from './MongoExportFormats'
+
+// Re-export for tests
+export { inferSchema }
 
 const logger = createLogger('Export')
 

@@ -261,7 +261,7 @@ export const JSON_SCHEMA: ExportFormat = {
   key: 'json-schema',
   name: 'JSON Schema',
   description: 'JSON Schema (draft 2020-12)',
-  extension: 'json',
+  extension: 'schema.json',
   mimeType: 'application/schema+json',
   supportsMultipleCollections: false,
   formatter: (data: ExportData, options = {}) => {
@@ -541,57 +541,164 @@ interface JSONSchema {
   required: string[]
 }
 
+/**
+ * Infer JSON Schema from documents using hierarchical schema tree
+ *
+ * Uses buildSchemaTree() for proper nested object handling
+ */
 function inferJSONSchema(docs: any[]): JSONSchema {
-  const fieldInfo = new Map<string, Set<string>>()
-  const fieldPresence = new Map<string, number>()
+  if (!docs || docs.length === 0) {
+    return { properties: {}, required: [] }
+  }
 
-  docs.forEach(doc => {
-    const fields = getAllFields(doc)
-
-    Object.entries(fields).forEach(([path, value]) => {
-      if (!fieldInfo.has(path)) {
-        fieldInfo.set(path, new Set())
-      }
-      fieldInfo.get(path)!.add(detectJSONSchemaType(value))
-      fieldPresence.set(path, (fieldPresence.get(path) || 0) + 1)
-    })
-  })
-
+  const tree = buildSchemaTree(docs, docs.length)
   const properties: Record<string, any> = {}
   const required: string[] = []
 
-  fieldInfo.forEach((types, path) => {
-    const typeArray = Array.from(types).filter(t => t !== 'null')
-    const isRequired = fieldPresence.get(path) === docs.length
+  if (!tree.children) {
+    return { properties, required }
+  }
 
-    if (isRequired && typeArray.length > 0) {
-      required.push(path)
-    }
+  // Convert each top-level field
+  tree.children.forEach((node, key) => {
+    properties[key] = schemaNodeToJSONSchema(node, docs.length, 1)
 
-    if (typeArray.length === 0) {
-      properties[path] = { type: 'null' }
-    } else if (typeArray.length === 1) {
-      const type = typeArray[0]
-      properties[path] = { type }
-
-      // Add format hints
-      if (type === 'string') {
-        // Check if it's a date string
-        const sample = docs.find(d => getAllFields(d)[path])
-        const value = getAllFields(sample)[path]
-        if (value instanceof Date || value?.$date) {
-          properties[path].format = 'date-time'
-        }
-      }
-    } else {
-      // Multiple types
-      properties[path] = {
-        anyOf: typeArray.map(t => ({ type: t }))
-      }
+    // Mark as required if present in all documents
+    if (node.count === docs.length) {
+      required.push(key)
     }
   })
 
-  return { properties, required }
+  // Sort keys for consistent output
+  const sortedProperties: Record<string, any> = {}
+  Object.keys(properties).sort().forEach(key => {
+    sortedProperties[key] = properties[key]
+  })
+
+  return {
+    properties: sortedProperties,
+    required: required.sort()
+  }
+}
+
+/**
+ * Convert SchemaNode to JSON Schema format with depth limiting
+ * @param depth - Current nesting depth (used to cap at 5 levels)
+ */
+function schemaNodeToJSONSchema(node: SchemaNode, totalDocs: number, depth: number = 1): any {
+  const allTypes = Array.from(node.types)
+  const types = allTypes.filter(t => t !== 'null')
+
+  // Collapse if > 3 types (counting null)
+  if (allTypes.length > 3) {
+    return {}
+  }
+
+  // No types or only null
+  if (types.length === 0) {
+    return { type: 'null' }
+  }
+
+  // Single type
+  if (types.length === 1) {
+    const type = types[0]
+
+    if (type === 'object' && node.children) {
+      // Depth limiting: collapse at depth > 5 (allow up to l5)
+      if (depth > 5) {
+        return {}
+      }
+
+      // Nested object - recurse
+      const properties: Record<string, any> = {}
+      const required: string[] = []
+
+      node.children.forEach((childNode, key) => {
+        properties[key] = schemaNodeToJSONSchema(childNode, totalDocs, depth + 1)
+        if (childNode.count === totalDocs) {
+          required.push(key)
+        }
+      })
+
+      // Sort keys
+      const sortedProperties: Record<string, any> = {}
+      Object.keys(properties).sort().forEach(key => {
+        sortedProperties[key] = properties[key]
+      })
+
+      return {
+        type: 'object',
+        additionalProperties: true,
+        properties: sortedProperties,
+        required: required.sort()
+      }
+    }
+
+    if (type === 'array') {
+      // Array type
+      const result: any = { type: 'array' }
+
+      if (node.arrayItemTypes && node.arrayItemTypes.size > 0) {
+        const itemTypes = Array.from(node.arrayItemTypes)
+
+        // Collapse if nested array
+        if (itemTypes.includes('array')) {
+          return result // Just {type: 'array'} without items
+        }
+
+        // For object arrays, use distinct shapes
+        if (itemTypes.includes('object') && node.arrayItemShapes) {
+          const shapes = Array.from(node.arrayItemShapes.values())
+
+          // Collapse if > 5 distinct shapes
+          if (shapes.length > 5) {
+            return result // Just {type: 'array'} without items
+          }
+
+          // Convert each shape to JSON Schema, using arrayItemCount for required fields
+          const shapeSchemas = shapes.map(shapeInfo => {
+            const schema = schemaNodeToJSONSchema(shapeInfo.schema, node.arrayItemCount || 0, depth + 1)
+
+            // If collapsed (empty object), skip
+            if (Object.keys(schema).length === 0) {
+              return null
+            }
+            return schema
+          }).filter(s => s !== null)
+
+          if (shapeSchemas.length === 0) {
+            return result
+          }
+
+          // Always use anyOf for objects (test convention)
+          result.items = {
+            anyOf: shapeSchemas
+          }
+          return result
+        }
+
+        if (itemTypes.length === 1) {
+          // Single primitive type
+          result.items = { type: itemTypes[0] }
+        } else {
+          // Mixed primitive types
+          result.items = {
+            anyOf: itemTypes.sort().map(t => ({ type: t }))
+          }
+        }
+      }
+
+      return result
+    }
+
+    // Primitive type
+    return { type: type }
+  }
+
+  // Multiple types - use anyOf
+  return {
+    anyOf: types.sort().map(t => ({ type: t }))
+  }
 }
 
 function detectJSONSchemaType(value: any): string {
@@ -744,8 +851,11 @@ interface SchemaNode {
   /** Array item types (for type 'array') */
   arrayItemTypes?: Set<string>
 
-  /** Nested array item structure (for arrays of objects) */
-  arrayItemSchema?: SchemaNode
+  /** Distinct object shapes in array (shape signature -> schema + count) */
+  arrayItemShapes?: Map<string, { schema: SchemaNode; count: number }>
+
+  /** Total count of array items (for required field calculation) */
+  arrayItemCount?: number
 }
 
 /**
@@ -793,11 +903,26 @@ function buildSchemaTree(docs: any[], totalDocs: number): SchemaNode {
 }
 
 /**
+ * Compute shape signature for an object (sorted keys)
+ *
+ * Used to identify distinct object shapes in arrays.
+ * Two objects with same keys (regardless of values) have same signature.
+ *
+ * @example
+ * getObjectSignature({id: 1, name: 'a'}) === 'id,name'
+ * getObjectSignature({name: 'b', id: 2}) === 'id,name' // same shape
+ */
+function getObjectSignature(obj: any): string {
+  if (!obj || typeof obj !== 'object') return ''
+  return Object.keys(obj).sort().join(',')
+}
+
+/**
  * Recursively analyze object structure and update schema tree
  *
  * Handles:
  * - Nested objects (recursive traversal)
- * - Arrays (with item type detection)
+ * - Arrays (with item type detection and distinct shape tracking)
  * - EJSON patterns (Date, ObjectID, Binary)
  * - Union types (mixed type fields)
  * - Optional vs required fields (based on occurrence count)
@@ -819,7 +944,8 @@ function analyzeObject(
         count: 0,
         children: undefined,
         arrayItemTypes: undefined,
-        arrayItemSchema: undefined
+        arrayItemShapes: undefined,
+        arrayItemCount: undefined
       })
     }
 
@@ -838,26 +964,40 @@ function analyzeObject(
       analyzeObject(value, node.children, totalDocs)
 
     } else if (detectedType === 'array' && Array.isArray(value)) {
-      // Array - analyze item types
+      // Array - analyze item types and track distinct object shapes
       node.types.add('array')
       if (!node.arrayItemTypes) {
         node.arrayItemTypes = new Set()
+        node.arrayItemShapes = new Map()
+        node.arrayItemCount = 0
       }
+
+      node.arrayItemCount! += value.length
 
       value.forEach(item => {
         const itemType = detectPrimitiveType(item)
         node.arrayItemTypes!.add(itemType)
 
-        // If array of objects, infer object structure
+        // If array of objects, track distinct shapes
         if (itemType === 'object' && item && typeof item === 'object') {
-          if (!node.arrayItemSchema) {
-            node.arrayItemSchema = {
-              types: new Set(['object']),
-              count: 0,
-              children: new Map()
-            }
+          const signature = getObjectSignature(item)
+
+          if (!node.arrayItemShapes!.has(signature)) {
+            node.arrayItemShapes!.set(signature, {
+              schema: {
+                types: new Set(['object']),
+                count: 0,
+                children: new Map()
+              },
+              count: 0
+            })
           }
-          analyzeObject(item, node.arrayItemSchema.children!, totalDocs)
+
+          const shapeInfo = node.arrayItemShapes!.get(signature)!
+          shapeInfo.count++
+
+          // Analyze this object's structure
+          analyzeObject(item, shapeInfo.schema.children!, value.length)
         }
       })
 
@@ -977,6 +1117,56 @@ function formatValueForCSV(value: any): string {
   if (typeof value === 'object') return JSON.stringify(value)
 
   return String(value)
+}
+
+// ============================================================================
+// Public Schema Inference API
+// ============================================================================
+
+/**
+ * Infer JSON Schema from documents with progress reporting and abort support
+ *
+ * Used by tests and external consumers. Returns full JSON Schema object.
+ *
+ * @param docs - Array of documents to analyze
+ * @param onProgress - Progress callback (progress: number, message: string)
+ * @param signal - AbortSignal for cancellation
+ * @returns Full JSON Schema (draft 2020-12)
+ */
+export function inferSchema(
+  docs: any[],
+  onProgress: (progress: number, message: string) => void,
+  signal: AbortSignal
+): any {
+  // Check abort
+  if (signal?.aborted) {
+    throw new DOMException('AbortError', 'AbortError')
+  }
+
+  // Handle empty collection
+  if (!docs || docs.length === 0) {
+    return {
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      additionalProperties: true,
+      type: 'array',
+      items: {}
+    }
+  }
+
+  onProgress?.(0.1, 'Inferring schema from documents...')
+
+  // Use internal inference
+  const { properties, required } = inferJSONSchema(docs)
+
+  onProgress?.(0.9, 'Finalizing schema...')
+
+  return {
+    $schema: 'https://json-schema.org/draft/2020-12/schema',
+    additionalProperties: true,
+    type: 'object',
+    properties,
+    required
+  }
 }
 
 // ============================================================================

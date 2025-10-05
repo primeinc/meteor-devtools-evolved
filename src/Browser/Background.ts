@@ -180,9 +180,17 @@ async function downloadViaOffscreen(
 
   return new Promise((resolve, reject) => {
     const listener = (msg: any) => {
-      if (msg?.type === 'OFFSCREEN_DOWNLOAD_DONE') {
+      if (msg?.type === 'OFFSCREEN_DOWNLOAD_READY') {
         chrome.runtime.onMessage.removeListener(listener)
-        resolve()
+        // Offscreen doc created blob URL - now download it from background
+        const { url, filename: fn } = msg.payload
+        chrome.downloads.download({ url, filename: fn, saveAs: false }, id => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message))
+          } else {
+            resolve()
+          }
+        })
       } else if (msg?.type === 'OFFSCREEN_DOWNLOAD_ERROR') {
         chrome.runtime.onMessage.removeListener(listener)
         reject(new Error(msg.payload?.message || 'Offscreen download failed'))

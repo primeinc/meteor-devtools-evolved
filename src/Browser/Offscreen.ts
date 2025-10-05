@@ -1,4 +1,7 @@
 // Runs in an offscreen document (has DOM + URL APIs)
+// NOTE: Offscreen documents do NOT have access to chrome.downloads API!
+// This script creates blob URLs and sends them to the background script.
+
 const URL_REVOKE_DELAY_MS = 10_000 // 10 seconds
 
 chrome.runtime.onMessage.addListener(async (msg, _sender, _sendResponse) => {
@@ -15,26 +18,18 @@ chrome.runtime.onMessage.addListener(async (msg, _sender, _sendResponse) => {
       await fetch(`data:${mime || 'application/octet-stream'};base64,${base64}`)
     ).blob()
     const url = URL.createObjectURL(blob)
-    chrome.downloads.download({ url, filename, saveAs: false }, id => {
-      // Check for download errors BEFORE scheduling URL revocation
-      if (chrome.runtime.lastError) {
-        console.error('[Offscreen] download error:', chrome.runtime.lastError)
-        chrome.runtime.sendMessage({
-          type: 'OFFSCREEN_DOWNLOAD_ERROR',
-          payload: { message: chrome.runtime.lastError.message },
-        })
-        URL.revokeObjectURL(url)
-        return
-      }
-      // Success: schedule delayed URL revocation and notify
-      setTimeout(() => URL.revokeObjectURL(url), URL_REVOKE_DELAY_MS)
-      chrome.runtime.sendMessage({
-        type: 'OFFSCREEN_DOWNLOAD_DONE',
-        payload: { id },
-      })
+
+    // Send blob URL back to background script for download
+    // (offscreen documents don't have chrome.downloads access)
+    chrome.runtime.sendMessage({
+      type: 'OFFSCREEN_DOWNLOAD_READY',
+      payload: { url, filename },
     })
+
+    // Schedule URL revocation after background script finishes download
+    setTimeout(() => URL.revokeObjectURL(url), URL_REVOKE_DELAY_MS)
   } catch (e) {
-    console.error('[Offscreen] download failed', e)
+    console.error('[Offscreen] blob creation failed', e)
     chrome.runtime.sendMessage({
       type: 'OFFSCREEN_DOWNLOAD_ERROR',
       payload: { message: String(e) },

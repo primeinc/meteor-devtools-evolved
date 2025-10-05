@@ -7,6 +7,7 @@ import prettyBytes from 'pretty-bytes'
 import { mapValues } from '@/Utils/Objects'
 import { BridgeAdapter } from '@/Utils/BridgeAdapter'
 import { ExportService } from '@/Pages/Panel/Minimongo/services/ExportService'
+import { ExportFormatKey } from '@/Pages/Panel/Minimongo/services/MongoExportFormats'
 import { createLogger } from '@/Utils/Logger'
 
 const logger = createLogger('MinimongoStore')
@@ -140,10 +141,19 @@ export class MinimongoStore {
 
   /**
    * Export active collection (or all collections if none selected) with optional data refresh
+   *
+   * PR REVIEW IMPLEMENTED: Use union type for format parameter instead of string
+   *
+   * @param exportType - Export format key. Supported formats:
+   *   - Data formats: 'mongo-import-ndjson', 'mongo-import-array', 'mongo-compass', 'mongo-shell', 'csv'
+   *   - Schema formats: 'typescript', 'mongoose', 'json-schema'
+   *   - Legacy: 'data' (alias for mongo-import-array), 'schema' (alias for json-schema)
+   * @param signal - AbortSignal to cancel the export operation
+   * @param refreshData - Whether to refresh data from the page before exporting (default: true)
    */
   exportActiveCollection = flow(function* (
     this: MinimongoStore,
-    exportType: 'data' | 'schema',
+    exportType: ExportFormatKey | 'data' | 'schema',
     signal: AbortSignal,
     refreshData: boolean = true,
   ) {
@@ -255,21 +265,15 @@ export class MinimongoStore {
     }
 
     try {
-      if (exportType === 'data') {
-        yield ExportService.exportData(
-          collectionName,
-          documents,
-          onProgress,
-          signal,
-        )
-      } else {
-        yield ExportService.exportSchema(
-          collectionName,
-          documents,
-          onProgress,
-          signal,
-        )
-      }
+      // Map legacy format keys to new system
+      let actualFormatKey = exportType
+      if (exportType === 'data') actualFormatKey = 'mongo-import-array'
+      if (exportType === 'schema') actualFormatKey = 'json-schema'
+
+      const format = ExportService.getFormats().find(f => f.key === actualFormatKey)
+      if (!format) throw new Error(`Unknown export format: ${exportType}`)
+
+      yield ExportService.exportCollection(format, collectionName, documents, onProgress, signal, { pretty: true })
       runInAction(() => {
         this.exportStatus = { progress: 1, message: 'Download complete' }
       })

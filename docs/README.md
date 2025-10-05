@@ -12,6 +12,16 @@
   - [Architecture Decisions](./features/minimongo-query-view/ARCHITECTURE_DECISIONS.md) - Critical design choices
   - [Feature Spec](./features/minimongo-query-view/FEATURE_SPEC.md) - Original requirements
 
+### For Research & Investigation
+- **[DOM Data Correlation](./research/dom-data-correlation.md)** - Unproven approach requiring prototyping
+  - Hard problems: Text matching heuristics, framework instrumentation
+  - Research plan: Phase 1 (proof of concept) → Phase 2 (feasibility) → Phase 3 (MVP)
+
+### For Understanding Architecture
+- **[Four-Source Data Truth Model](./architecture/four-source-data-truth-model.md)** - Mental model for Meteor data flow
+  - Conceptual framework: DDP → Minimongo → Subscriptions → DOM
+  - Implementation status: 3/4 sources tracked, no correlation logic
+
 ### For Code Quality
 - **[Code Quality Audits](./code-quality/)** - Tech debt tracking
   - [Remaining Issues](./code-quality/REMAINING_ISSUES.md) - Post-PR#15 comprehensive audit
@@ -90,13 +100,19 @@ docs/
 ├── README.md                          ← You are here
 ├── ORGANIZATION_SUMMARY.md            ← Why organized this way (reasoning defense)
 │
-├── features/                          ← Feature design documentation
+├── features/                          ← Implementation-ready features
 │   └── minimongo-query-view/
 │       ├── README.md                  (Overview, status, quick start)
 │       ├── LLM_IMPLEMENTATION_GUIDE.md (Step-by-step for LLMs - START HERE)
 │       ├── ARCHITECTURE_DECISIONS.md  (7 ADRs with tradeoff analysis)
 │       ├── FEATURE_SPEC.md            (Original design document)
 │       └── reference-components/      (Example UI components)
+│
+├── research/                          ← Speculative/unproven features
+│   └── dom-data-correlation.md        (Needs prototyping before implementation)
+│
+├── architecture/                      ← Conceptual models & mental frameworks
+│   └── four-source-data-truth-model.md (Data flow mental model)
 │
 └── code-quality/                      ← Code quality audits
     ├── README.md
@@ -108,7 +124,9 @@ docs/
 ## 🎯 Documentation Strategy
 
 ### For Version Control (git)
-- ✅ Feature specifications → `features/`
+- ✅ Implementation-ready features → `features/`
+- ✅ Speculative/research features → `research/`
+- ✅ Architectural concepts → `architecture/`
 - ✅ Architecture decisions → `features/*/ARCHITECTURE_DECISIONS.md`
 - ✅ Code quality audits → `code-quality/`
 - ✅ Implementation guides → `features/*/LLM_IMPLEMENTATION_GUIDE.md`
@@ -235,6 +253,85 @@ Start with Phase 0.
 ---
 
 ## 📞 Contributing to Docs
+
+### Speculative vs Implementation-Ready Features
+
+**CRITICAL RULE:** Not all ideas belong in `docs/features/`. Distinguish between:
+
+#### 1. Implementation-Ready Features → `docs/features/<name>/`
+
+**Criteria:**
+- ✅ Technical approach is **proven** (prototyped or based on existing patterns)
+- ✅ Implementation is achievable in **estimated time** (not "unknown" or "TBD")
+- ✅ All prerequisite files exist and are understood
+- ✅ Can write concrete implementation steps (not "research how to...")
+
+**Required files:**
+- `README.md` (overview, status, quick start)
+- `FEATURE_SPEC.md` (requirements, architecture)
+- `LLM_IMPLEMENTATION_GUIDE.md` (step-by-step with file references)
+
+**Example:** Minimongo Query View (design complete, patterns established, ready to code)
+
+#### 2. Research/Speculative Features → `docs/research/<name>.md`
+
+**Criteria:**
+- ⚠️ Architecturally sound but **technically unproven**
+- ⚠️ Requires investigation/prototyping before implementation
+- ⚠️ Has **open questions** or **unknown complexity**
+- ⚠️ Implementation approach has **multiple risky assumptions**
+
+**Required sections:**
+- **Problem Statement** (what are we trying to solve?)
+- **Proposed Approaches** (2-3 options with pros/cons)
+- **Hard Problems** (technical challenges, unknowns)
+- **Research Plan** (phases, success criteria, time estimates)
+- **Open Questions** (what needs answering before committing)
+- **Recommendation** (pursue, prototype, or abandon)
+
+**Example:** DOM Data Correlation (heuristic matching unproven, needs Phase 1 prototype)
+
+#### 3. Architectural Concepts → `docs/architecture/<name>.md`
+
+**Criteria:**
+- 💡 **Mental model** useful for reasoning (even if never implemented)
+- 💡 Conceptual framework (not a feature to build)
+- 💡 May have partial implementation or be aspirational
+
+**Required sections:**
+- **Purpose** (why this model is useful)
+- **The Model** (diagram and explanation)
+- **Implementation Status** (what exists vs what doesn't)
+- **Benefits** (how it helps thinking/design)
+- **Related Documents** (links to research/features)
+
+**Example:** Four-Source Data Truth Model (concept is valuable, full implementation is speculative)
+
+#### Decision Tree
+
+```
+Is the feature idea proven and ready to implement?
+├─ YES → docs/features/<name>/
+│         Include LLM_IMPLEMENTATION_GUIDE.md
+│
+├─ NO, needs research → docs/research/<name>.md
+│         Include Research Plan with phases
+│
+└─ NO, just a concept → docs/architecture/<name>.md
+          Include Implementation Status section
+```
+
+**Why this matters:**
+
+❌ **Bad:** Creating `docs/features/paint-my-data/` with implementation guide when DOM text matching is unproven
+- Sets false expectations
+- Wastes implementer time on blocked tasks
+- Creates frustration when approach fails
+
+✅ **Good:** Creating `docs/research/dom-data-correlation.md` with honest unknowns
+- Sets realistic expectations
+- Guides prototyping effort
+- Documents decision points
 
 ### Adding New Feature Documentation
 

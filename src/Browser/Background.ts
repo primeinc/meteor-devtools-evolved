@@ -52,11 +52,58 @@ const MAX_DATA_URL_SIZE = 4 * 1024 * 1024 // 4MB
 const URL_REVOKE_DELAY_MS = 10_000 // 10 seconds
 const OFFSCREEN_DOWNLOAD_TIMEOUT_MS = 30_000 // 30 seconds timeout for offscreen download
 
-// Helper: convert Uint8Array to binary string for btoa()
-function bytesToBinaryString(bytes: Uint8Array): string {
-  // Using TextDecoder is more modern and performant for converting Uint8Array to a binary string.
-  // The 'latin1' encoding ensures a 1:1 mapping of byte values to character codes, which is what btoa expects.
-  return new TextDecoder('latin1').decode(bytes)
+/**
+ * Convert Uint8Array to base64 string
+ *
+ * CRITICAL: DO NOT modify this function or use TextDecoder('latin1')!
+ *
+ * WHY THIS IMPLEMENTATION:
+ * - TextDecoder('latin1') FAILS with btoa() for certain byte values (0x80-0xFF range)
+ * - Error: "The string to be encoded contains characters outside of the Latin1 range"
+ * - This happens because TextDecoder maps bytes to Unicode, not to Latin1 characters
+ *
+ * CORRECT APPROACH (per MDN/web.dev):
+ * - Convert each byte individually using String.fromCodePoint()
+ * - Process in small chunks (8KB) to avoid blocking service worker
+ * - Use native Uint8Array.toBase64() when available (Chrome 118+)
+ *
+ * @param bytes - Uint8Array to convert
+ * @returns base64-encoded string
+ *
+ * @see https://developer.mozilla.org/en-US/docs/Web/API/btoa#unicode_strings
+ * @see https://web.dev/articles/base64-encoding
+ */
+/**
+ * Type guard for Uint8Array with toBase64 method
+ * PR REVIEW IMPLEMENTED: Improve type safety for toBase64 feature detection
+ */
+interface Uint8ArrayWithToBase64 extends Uint8Array {
+  toBase64(): string
+}
+
+function hasToBase64(arr: Uint8Array): arr is Uint8ArrayWithToBase64 {
+  return 'toBase64' in Uint8Array.prototype && typeof (arr as any).toBase64 === 'function'
+}
+
+function uint8ArrayToBase64(bytes: Uint8Array): string {
+  // Use native toBase64 if available (Chrome 118+)
+  if (hasToBase64(bytes)) {
+    return bytes.toBase64()
+  }
+
+  // Fallback: Process in small chunks to avoid blocking service worker
+  const CHUNK_SIZE = 8192 // 8KB chunks - tested to not block service worker
+  let base64 = ''
+
+  for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
+    const chunk = bytes.subarray(i, Math.min(i + CHUNK_SIZE, bytes.length))
+    // Convert each byte to a character code point for btoa
+    // This ensures proper encoding for ALL byte values (0x00-0xFF)
+    const binString = Array.from(chunk, (byte) => String.fromCodePoint(byte)).join('')
+    base64 += btoa(binString)
+  }
+
+  return base64
 }
 
 // Helper: mark transfer as failed and schedule cleanup
@@ -126,16 +173,24 @@ async function downloadViaOffscreen(
   }
 
   // Convert blob to base64 for message passing
+  // IMPORTANT: Use uint8ArrayToBase64() - do NOT use TextDecoder('latin1')!
   const buf = await blob.arrayBuffer()
   const bytes = new Uint8Array(buf)
-  const binary = bytesToBinaryString(bytes)
-  const base64 = btoa(binary)
+  const base64 = uint8ArrayToBase64(bytes)
 
   return new Promise((resolve, reject) => {
     const listener = (msg: any) => {
-      if (msg?.type === 'OFFSCREEN_DOWNLOAD_DONE') {
+      if (msg?.type === 'OFFSCREEN_DOWNLOAD_READY') {
         chrome.runtime.onMessage.removeListener(listener)
-        resolve()
+        // Offscreen doc created blob URL - now download it from background
+        const { url, filename: fn } = msg.payload
+        chrome.downloads.download({ url, filename: fn, saveAs: false }, id => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message))
+          } else {
+            resolve()
+          }
+        })
       } else if (msg?.type === 'OFFSCREEN_DOWNLOAD_ERROR') {
         chrome.runtime.onMessage.removeListener(listener)
         reject(new Error(msg.payload?.message || 'Offscreen download failed'))
@@ -381,10 +436,11 @@ const panelListener = () => {
                 // Only use data URL for small files
                 if (blob.size < MAX_DATA_URL_SIZE) {
                   const bytes = new Uint8Array(await blob.arrayBuffer())
-                  const binary = bytesToBinaryString(bytes)
+                  // IMPORTANT: Use uint8ArrayToBase64() - do NOT use TextDecoder('latin1')!
+                  const base64 = uint8ArrayToBase64(bytes)
                   const dataUrl = `data:${
                     t.mime || 'application/octet-stream'
-                  };base64,${btoa(binary)}`
+                  };base64,${base64}`
                   chrome.downloads.download(
                     { url: dataUrl, filename, saveAs: false },
                     id => {

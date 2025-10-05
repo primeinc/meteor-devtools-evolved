@@ -140,7 +140,13 @@ export class MinimongoStore {
 
   /**
    * Export active collection (or all collections if none selected) with optional data refresh
-   * @param exportType - Format key (e.g., 'mongo-import-ndjson', 'typescript') or legacy 'data'/'schema'
+   *
+   * @param exportType - Export format key. Supported formats:
+   *   - Data formats: 'mongo-import-ndjson', 'mongo-import-array', 'mongo-compass', 'mongo-shell', 'csv'
+   *   - Schema formats: 'typescript', 'mongoose', 'json-schema'
+   *   - Legacy: 'data' (alias for mongo-import-array), 'schema' (alias for json-schema)
+   * @param signal - AbortSignal to cancel the export operation
+   * @param refreshData - Whether to refresh data from the page before exporting (default: true)
    */
   exportActiveCollection = flow(function* (
     this: MinimongoStore,

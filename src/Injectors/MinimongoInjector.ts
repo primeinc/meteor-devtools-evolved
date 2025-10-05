@@ -1,6 +1,8 @@
-import { warning } from '@/Log'
+import { createLogger } from '@/Utils/Logger'
 import { Registry, sendMessage } from '@/Browser/Inject'
 import throttle from 'lodash.throttle'
+
+const logger = createLogger('MinimongoInjector')
 
 /**
  * Serialize object using EJSON to preserve Dates and other MongoDB types
@@ -24,15 +26,15 @@ function cloneDeepWithEJSON(obj: any) {
       return EJSON.parse(serialized)
     } catch (e) {
       // Handle circular references or other EJSON serialization errors
-      warning('EJSON.stringify failed (circular reference?): ' + (e as Error).message + '. Falling back to JSON.')
+      logger.warn('EJSON.stringify failed (circular reference?):', (e as Error).message, '- Falling back to JSON.')
       // Fall through to JSON fallback below
     }
   }
 
   // Fallback to regular JSON (will lose Date objects)
   // This should rarely happen, but can occur if injector runs before Meteor loads
-  warning(
-    'EJSON not available - Date/ObjectId/Binary exports may lose type information. ' +
+  logger.warn(
+    'EJSON not available - Date/ObjectId/Binary exports may lose type information.',
     'Try refreshing the page or waiting for Meteor to fully load.'
   )
 
@@ -40,7 +42,7 @@ function cloneDeepWithEJSON(obj: any) {
     return JSON.parse(JSON.stringify(obj))
   } catch (e) {
     // Handle circular references or other JSON serialization errors
-    warning('Failed to clone object (circular reference or non-serializable data): ' + (e as Error).message)
+    logger.warn('Failed to clone object (circular reference or non-serializable data):', (e as Error).message)
     return {} // Return empty object instead of crashing
   }
 }
@@ -108,9 +110,7 @@ const getCollections = (requestPayload?: object) => {
   const collections = Meteor.connection._mongo_livedata_collections
 
   if (!collections) {
-    warning(
-      'Collections not initialized in the client yet. Possibly forgotten to be imported.',
-    )
+    logger.warn('Collections not initialized in the client yet. Possibly forgotten to be imported.')
     return
   }
 

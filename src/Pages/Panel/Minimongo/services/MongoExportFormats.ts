@@ -884,11 +884,23 @@ function schemaNodeToJSONSchema(node: SchemaNode, totalDocs: number, depth: numb
 function detectJSONSchemaType(value: any): string {
   if (value === null) return 'null'
 
-  // EJSON types
+  // EJSON types - with validation
   if (value instanceof Date) return 'string' // ISO date string
-  if (value?.$date) return 'string'
-  if (value?.$oid) return 'string'
-  if (value?.$binary) return 'string'
+
+  if (
+    Object.prototype.hasOwnProperty.call(value || {}, '$date') &&
+    (typeof value.$date === 'string' || typeof value.$date === 'number')
+  ) {
+    return 'string'
+  }
+
+  if (value?.$oid && typeof value.$oid === 'string' && /^[a-fA-F0-9]{24}$/.test(value.$oid)) {
+    return 'string'
+  }
+
+  if (value?.$binary && typeof value.$binary === 'string') {
+    return 'string'
+  }
 
   // Primitive types
   if (typeof value === 'string') return 'string'
@@ -917,12 +929,15 @@ function convertToMongoShellLiteral(value: any, indent: number, seen: Set<any> =
     return 'null'
   }
 
-  // EJSON patterns
-  if (value?.$oid) {
+  // EJSON patterns - with validation
+  if (value?.$oid && typeof value.$oid === 'string' && /^[a-fA-F0-9]{24}$/.test(value.$oid)) {
     return `ObjectId("${value.$oid}")`
   }
 
-  if (value?.$date) {
+  if (
+    Object.prototype.hasOwnProperty.call(value || {}, '$date') &&
+    (typeof value.$date === 'string' || typeof value.$date === 'number')
+  ) {
     const date = new Date(value.$date)
     return `ISODate("${date.toISOString()}")`
   }
@@ -931,7 +946,7 @@ function convertToMongoShellLiteral(value: any, indent: number, seen: Set<any> =
     return `ISODate("${value.toISOString()}")`
   }
 
-  if (value?.$binary) {
+  if (value?.$binary && typeof value.$binary === 'string') {
     return `BinData(0, "${value.$binary}")`
   }
 
@@ -1316,8 +1331,18 @@ function formatValueForCSV(value: any): string {
   if (value === null || value === undefined) return ''
 
   if (value instanceof Date) return value.toISOString()
-  if (value?.$date) return new Date(value.$date).toISOString()
-  if (value?.$oid) return value.$oid
+
+  // EJSON patterns - with validation
+  if (
+    Object.prototype.hasOwnProperty.call(value || {}, '$date') &&
+    (typeof value.$date === 'string' || typeof value.$date === 'number')
+  ) {
+    return new Date(value.$date).toISOString()
+  }
+
+  if (value?.$oid && typeof value.$oid === 'string' && /^[a-fA-F0-9]{24}$/.test(value.$oid)) {
+    return value.$oid
+  }
 
   if (Array.isArray(value)) return JSON.stringify(value)
   if (typeof value === 'object') return JSON.stringify(value)

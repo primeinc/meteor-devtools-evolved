@@ -5,7 +5,10 @@ import { AppToaster } from '@/AppToaster'
 const MAX_COPY_BYTES = 5 * 1024 * 1024 // 5 MB
 
 /**
- *
+ * Copy text to clipboard with size validation and fallback for DevTools context
+ * @param label - Label to display in success toast notification
+ * @param text - Text content to copy to clipboard
+ * @throws Error if copy operation fails
  */
 export async function copyText(label: string, text: string): Promise<void> {
   const size = new TextEncoder().encode(text).length

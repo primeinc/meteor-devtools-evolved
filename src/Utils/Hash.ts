@@ -3,7 +3,10 @@
  */
 
 /**
+ * Computes SHA-256 hash of bytes and returns as hex string.
  *
+ * @param bytes - The bytes to hash
+ * @returns Hex-encoded SHA-256 hash
  */
 export async function sha256Hex(
   bytes: Uint8Array<ArrayBuffer>,

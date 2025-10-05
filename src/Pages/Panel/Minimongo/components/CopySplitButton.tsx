@@ -28,16 +28,18 @@ export const CopySplitButton: React.FC<Props> = ({
     try {
       const saved = localStorage.getItem(LS_KEY) as CopyFormatKey | null
       if (saved && COPY_FORMATS.some(f => f.key === saved)) setLastFormat(saved)
-    } catch {
-      // Ignore localStorage errors
+    } catch (error) {
+      // Ignore localStorage errors (e.g., private browsing mode)
+      console.warn('Failed to read from localStorage:', error)
     }
   }, [])
 
   useEffect(() => {
     try {
       localStorage.setItem(LS_KEY, lastFormat)
-    } catch {
-      // Ignore localStorage errors
+    } catch (error) {
+      // Ignore localStorage errors (e.g., private browsing mode)
+      console.warn('Failed to write to localStorage:', error)
     }
   }, [lastFormat])
 

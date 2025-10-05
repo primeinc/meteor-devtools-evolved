@@ -130,7 +130,8 @@ export const Registry: IRegistry = {
 }
 
 /**
- *
+ * Injects all DevTools components into the Meteor application.
+ * Polls for Meteor object and initializes DDP/Minimongo injectors when found.
  */
 export function injectAll() {
   if (!window.__meteor_devtools_evolved) {
@@ -146,7 +147,7 @@ export function injectAll() {
     let interval = null
 
     /**
-     *
+     * Attempts to inject DevTools components if Meteor is available.
      */
     function inject() {
       --attempts

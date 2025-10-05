@@ -22,7 +22,12 @@ export type GridItem = {
 }
 
 /**
+ * Renders a responsive grid of partner or team member cards.
  *
+ * @param props - The component props
+ * @param props.items - The list of people or partners to display in the grid
+ * @param props.className - Optional additional class names for the grid container
+ * @returns The rendered grid of partner cards
  */
 export function PartnersGrid({ items, className = '' }) {
   return (

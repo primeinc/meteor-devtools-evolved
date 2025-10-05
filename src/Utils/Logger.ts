@@ -27,7 +27,10 @@ export class Logger {
 }
 
 /**
+ * Creates a logger instance with the specified context.
  *
+ * @param context - The context name for log messages
+ * @returns A new Logger instance
  */
 export function createLogger(context: string): Logger {
   return new Logger(context)

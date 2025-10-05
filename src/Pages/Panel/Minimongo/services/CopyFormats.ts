@@ -12,7 +12,9 @@ const EJSON_WARNING = `// WARNING: Potential EJSON types (e.g., Date, ObjectId, 
 // Review and convert to shell literals (ISODate(...), ObjectId(...)) BEFORE running.`
 
 /**
- *
+ * Check if a value contains EJSON types (Date, ObjectId, Binary)
+ * @param v - Value to check for EJSON types
+ * @returns True if value contains EJSON-like structures
  */
 function hasEjsonLike(v: any): boolean {
   const stack: any[] = [v]
@@ -43,7 +45,9 @@ function hasEjsonLike(v: any): boolean {
 }
 
 /**
- *
+ * Stringify object with sorted keys and pretty formatting
+ * @param obj - Object to stringify
+ * @returns Pretty-printed JSON string with sorted keys
  */
 function stableStringifyPretty(obj: any): string {
   const seen = new WeakSet()
@@ -69,7 +73,9 @@ function stableStringifyPretty(obj: any): string {
 }
 
 /**
- *
+ * Stringify object with sorted keys in compact format
+ * @param obj - Object to stringify
+ * @returns Compact JSON string with sorted keys
  */
 function stableStringifyCompact(obj: any): string {
   const seen = new WeakSet()
@@ -91,7 +97,9 @@ function stableStringifyCompact(obj: any): string {
 }
 
 /**
- *
+ * Convert MongoDB _id to literal string representation
+ * @param id - MongoDB document _id (string or ObjectId)
+ * @returns String literal representation of the _id
  */
 function mongoIdLiteral(id: unknown): string {
   if (typeof id === 'string') return `"${id.replace(/"/g, '\\"')}"`
@@ -99,7 +107,10 @@ function mongoIdLiteral(id: unknown): string {
 }
 
 /**
- *
+ * Convert document to raw JSON format with optional metadata header
+ * @param doc - Document to convert
+ * @param collectionName - Optional collection name to include in header
+ * @returns Pretty-printed JSON string with optional header
  */
 export function toRawJSON(doc: Doc, collectionName?: string): string {
   const json = stableStringifyPretty(doc)
@@ -110,14 +121,19 @@ export function toRawJSON(doc: Doc, collectionName?: string): string {
   }\n${json}`
 }
 /**
- *
+ * Convert document to compact JSON format
+ * @param doc - Document to convert
+ * @returns Minified JSON string
  */
 export function toCompactJSON(doc: Doc): string {
   return stableStringifyCompact(doc)
 }
 
 /**
- *
+ * Generate MongoDB findOne queries for document lookup
+ * @param collectionName - Name of the collection
+ * @param doc - Document to generate queries for
+ * @returns MongoDB shell queries (by useful fields and _id)
  */
 export function toMongoQuery(collectionName: string, doc: Doc): string {
   const queries: string[] = []
@@ -185,7 +201,10 @@ export function toMongoQuery(collectionName: string, doc: Doc): string {
 }
 
 /**
- *
+ * Convert EJSON value to MongoDB shell literal format
+ * @param value - Value to convert (supports EJSON types)
+ * @param indent - Current indentation level for formatting
+ * @returns MongoDB shell-compatible literal string
  */
 function convertEJSONValue(value: any, indent = ''): string {
   if (typeof value === 'string') {
@@ -230,7 +249,10 @@ function convertEJSONValue(value: any, indent = ''): string {
 }
 
 /**
- *
+ * Generate MongoDB insertOne statement for document
+ * @param collectionName - Name of the collection
+ * @param doc - Document to insert
+ * @returns MongoDB shell insertOne command with EJSON warning if needed
  */
 export function toMongoInsert(collectionName: string, doc: Doc): string {
   const converted = convertEJSONValue(doc, '  ')
@@ -261,7 +283,11 @@ export const COPY_FORMATS: Array<{
 ]
 
 /**
- *
+ * Generate formatted output by copy format key
+ * @param key - Copy format key (raw, compact, mongoQuery, mongoInsert)
+ * @param collectionName - Name of the collection
+ * @param doc - Document to format
+ * @returns Formatted string based on selected format
  */
 export function generateByKey(
   key: CopyFormatKey,

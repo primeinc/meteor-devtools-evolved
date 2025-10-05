@@ -96,7 +96,10 @@ function cloneDeepWithEJSON(obj: any) {
 }
 
 /**
+ * Checks if a value is an array.
  *
+ * @param obj - The value to check
+ * @returns True if the value is an array
  */
 function isArray(obj: any) {
   return Array.isArray(obj)

@@ -84,7 +84,10 @@ interface Uint8ArrayWithToBase64 extends Uint8Array {
 }
 
 /**
+ * Type guard to check if Uint8Array has native toBase64 method (Chrome 118+).
  *
+ * @param arr - The Uint8Array to check
+ * @returns True if the array has the toBase64 method
  */
 function hasToBase64(arr: Uint8Array): arr is Uint8ArrayWithToBase64 {
   return (
@@ -94,7 +97,10 @@ function hasToBase64(arr: Uint8Array): arr is Uint8ArrayWithToBase64 {
 }
 
 /**
+ * Converts a Uint8Array to base64 string using native method or fallback.
  *
+ * @param bytes - The bytes to convert
+ * @returns Base64 encoded string
  */
 function uint8ArrayToBase64(bytes: Uint8Array): string {
   // Use native toBase64 if available (Chrome 118+)
@@ -119,9 +125,12 @@ function uint8ArrayToBase64(bytes: Uint8Array): string {
   return base64
 }
 
-// Helper: mark transfer as failed and schedule cleanup
 /**
+ * Mark transfer as failed and schedule cleanup.
  *
+ * @param id - The transfer ID
+ * @param reason - The failure reason
+ * @param port - The runtime port to send failure message to
  */
 function markFailed(id: string, reason: string, port: RuntimePort) {
   const t = transfers.get(id)
@@ -142,10 +151,13 @@ function markFailed(id: string, reason: string, port: RuntimePort) {
   }, FAILED_TRANSFER_CLEANUP_MS)
 }
 
-// Helper: log auth error and ignore (don't fail transfer)
-// This prevents DoS attacks where invalid tokens/senders could kill legitimate exports
 /**
+ * Log auth error and ignore (don't fail transfer).
+ * This prevents DoS attacks where invalid tokens/senders could kill legitimate exports.
  *
+ * @param id - The transfer ID
+ * @param reason - The auth error reason
+ * @param payload - The payload that failed auth
  */
 function logAuthError(id: string, reason: string, payload: any) {
   exportLogger.warn(`Auth error for ${id}, ignoring:`, reason, {
@@ -154,9 +166,10 @@ function logAuthError(id: string, reason: string, payload: any) {
   })
 }
 
-// Helper: schedule/refresh TTL for a transfer
 /**
+ * Schedule/refresh TTL for a transfer.
  *
+ * @param id - The transfer ID
  */
 function scheduleTTL(id: string) {
   const t = transfers.get(id)
@@ -173,9 +186,12 @@ function scheduleTTL(id: string) {
   }, TTL_MS)
 }
 
-// Helper: Download via offscreen document (for MV3 service worker)
 /**
+ * Download via offscreen document (for MV3 service worker).
  *
+ * @param blob - The blob to download
+ * @param filename - The filename for the download
+ * @param mime - The MIME type of the blob
  */
 async function downloadViaOffscreen(
   blob: Blob,

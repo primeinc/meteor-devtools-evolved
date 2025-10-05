@@ -28,14 +28,16 @@ const logger = createLogger('Export')
 const CHUNK_SIZE = 500
 
 /**
- *
+ * Yield control to event loop (zero-delay setTimeout)
+ * @returns Promise that resolves on next tick
  */
 function sleep0(): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, 0))
 }
 
 /**
- *
+ * Check if running in DevTools panel context
+ * @returns True if in DevTools panel (chrome-extension:// with devtools reference)
  */
 function inDevToolsPanel(): boolean {
   // devtools pages use a chrome-extension:// URL but include "devtools" resources
@@ -46,7 +48,9 @@ function inDevToolsPanel(): boolean {
 }
 
 /**
- *
+ * Download blob using anchor element click (standard web context)
+ * @param blob - Blob to download
+ * @param filename - Download filename
  */
 async function tryAnchorDownload(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
@@ -63,7 +67,12 @@ async function tryAnchorDownload(blob: Blob, filename: string) {
 }
 
 /**
- *
+ * Download blob via background script relay (DevTools panel context)
+ * @param blob - Blob to download
+ * @param filename - Download filename
+ * @param mime - MIME type
+ * @param signal - AbortSignal for cancellation
+ * @param onProgress - Progress callback (0-1)
  */
 async function downloadViaRelay(
   blob: Blob,
@@ -90,7 +99,11 @@ async function downloadViaRelay(
 }
 
 /**
- *
+ * Save blob to disk using appropriate download method
+ * @param blob - Blob to save
+ * @param filename - Download filename
+ * @param signal - AbortSignal for cancellation
+ * @param onProgress - Progress callback (0-1)
  */
 export async function saveBlob(
   blob: Blob,

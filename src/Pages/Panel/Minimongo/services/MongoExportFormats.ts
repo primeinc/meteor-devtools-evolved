@@ -999,7 +999,9 @@ function schemaNodeToJSONSchema(
 }
 
 /**
- *
+ * Detect JSON Schema type for a value (supports EJSON types)
+ * @param value - Value to detect type for
+ * @returns JSON Schema type string (string, number, integer, boolean, array, object, null)
  */
 function detectJSONSchemaType(value: any): string {
   if (value === null) return 'null'
@@ -1111,7 +1113,9 @@ function isEJSONObjectId(value: any): boolean {
 }
 
 /**
- *
+ * Check if value is a valid EJSON Date object
+ * @param value - Value to check
+ * @returns True if value is {$date: string|number} with exactly one key
  */
 function isEJSONDate(value: any): boolean {
   return (
@@ -1124,7 +1128,9 @@ function isEJSONDate(value: any): boolean {
 }
 
 /**
- *
+ * Check if value is a valid EJSON Binary object
+ * @param value - Value to check
+ * @returns True if value is {$binary: string} with exactly one key
  */
 function isEJSONBinary(value: any): boolean {
   return (
@@ -1140,7 +1146,11 @@ function isEJSONBinary(value: any): boolean {
 // ============================================================================
 
 /**
- *
+ * Convert value to MongoDB shell literal format with circular reference detection
+ * @param value - Value to convert
+ * @param indent - Current indentation level
+ * @param seen - WeakSet for circular reference tracking
+ * @returns MongoDB shell-compatible literal string
  */
 function convertToMongoShellLiteral(
   value: any,

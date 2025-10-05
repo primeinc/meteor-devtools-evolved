@@ -236,9 +236,9 @@ describe('MongoExportFormats - EJSON Handling', () => {
       expect(lines[0]).toContain('_id')
       expect(lines[0]).toContain('createdAt')
 
-      // EJSON {$date: number} should be stringified in CSV
+      // EJSON {$date: number} should be converted to ISO string in CSV for readability
       expect(lines[1]).toContain('507f1f77bcf86cd799439011')
-      expect(lines[1]).toContain(String(testDate1.getTime())) // Numeric timestamp
+      expect(lines[1]).toContain(testDate1.toISOString()) // ISO string format
     })
 
     it('should escape quotes in string values', () => {

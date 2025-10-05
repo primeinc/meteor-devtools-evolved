@@ -25,11 +25,18 @@ function cloneDeepWithEJSON(obj: any) {
 
   // Fallback to regular JSON (will lose Date objects)
   // This should rarely happen, but can occur if injector runs before Meteor loads
-  console.warn(
-    '[Meteor DevTools] EJSON not available - Date/ObjectId/Binary exports may lose type information. ' +
+  warning(
+    'EJSON not available - Date/ObjectId/Binary exports may lose type information. ' +
     'Try refreshing the page or waiting for Meteor to fully load.'
   )
-  return JSON.parse(JSON.stringify(obj))
+
+  try {
+    return JSON.parse(JSON.stringify(obj))
+  } catch (e) {
+    // Handle circular references or other JSON serialization errors
+    warning('Failed to clone object (circular reference or non-serializable data): ' + (e as Error).message)
+    return {} // Return empty object instead of crashing
+  }
 }
 
 function isArray(obj: any) {

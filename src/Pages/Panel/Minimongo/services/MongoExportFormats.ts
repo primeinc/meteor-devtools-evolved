@@ -281,13 +281,13 @@ export const JSON_SCHEMA: ExportFormat = {
     const docs = data.documents || []
     const schema = inferJSONSchema(docs)
 
-    const output = {
+    const output: JSONSchemaResult = {
       $schema: 'https://json-schema.org/draft/2020-12/schema',
       $id: `https://example.com/${data.collectionName || 'document'}.schema.json`,
       title: pascalCase(data.collectionName || 'Document'),
       description: `Auto-generated from ${docs.length} document(s)`,
       type: 'object',
-      additionalProperties: true,
+      additionalProperties: false, // Stricter validation per design spec
       properties: schema.properties,
       required: schema.required
     }
@@ -687,6 +687,22 @@ interface JSONSchema {
 }
 
 /**
+ * JSON Schema Draft 2020-12 Result
+ *
+ * Represents a complete JSON Schema document with metadata
+ */
+interface JSONSchemaResult {
+  $schema: string
+  $id: string
+  title: string
+  description: string
+  type: 'object'
+  additionalProperties: boolean
+  properties: Record<string, any>
+  required: string[]
+}
+
+/**
  * Infer JSON Schema from documents using hierarchical schema tree
  *
  * Uses buildSchemaTree() for proper nested object handling
@@ -902,15 +918,9 @@ function convertToMongoShellLiteral(value: any, indent: number): string {
 
   // Primitives
   if (typeof value === 'string') {
-    // SECURITY: Escape all special characters (backslashes FIRST!)
-    const escaped = value
-      .replace(/\\/g, '\\\\')   // Backslashes must be first!
-      .replace(/"/g, '\\"')      // Double quotes
-      .replace(/\n/g, '\\n')     // Newlines
-      .replace(/\r/g, '\\r')     // Carriage returns
-      .replace(/\t/g, '\\t')     // Tabs
-      .replace(/\0/g, '\\0')     // Null bytes
-    return `"${escaped}"`
+    // SECURITY: Use centralized sanitizer to escape all special characters
+    // Reuses escapeMongoShellString from CollectionNameSanitizer.ts
+    return `"${escapeMongoShellString(value)}"`
   }
 
   if (typeof value === 'number' || typeof value === 'boolean') {
@@ -1157,8 +1167,20 @@ function detectPrimitiveType(value: any): string {
 
   // 2. EJSON patterns (MongoDB Extended JSON)
   if (value && typeof value === 'object') {
-    if (value.$oid && typeof value.$oid === 'string') return 'ObjectId'
-    if ('$date' in value) return 'Date'
+    // Validate $oid: must be a 24-character hex string
+    if (
+      typeof value.$oid === 'string' &&
+      /^[a-fA-F0-9]{24}$/.test(value.$oid)
+    ) {
+      return 'ObjectId'
+    }
+    // Validate $date: must be a string or number
+    if (
+      Object.prototype.hasOwnProperty.call(value, '$date') &&
+      (typeof value.$date === 'string' || typeof value.$date === 'number')
+    ) {
+      return 'Date'
+    }
     if (value.$binary && typeof value.$binary === 'string') return 'Buffer'
   }
 
@@ -1192,7 +1214,15 @@ function flattenObject(obj: any, prefix = ''): Record<string, any> {
   Object.entries(obj).forEach(([key, value]) => {
     const newKey = prefix ? `${prefix}.${key}` : key
 
-    if (value && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)) {
+    // Check if nested object (not EJSON, not array, not Date)
+    const isNestedObject = value && typeof value === 'object' &&
+                          !Array.isArray(value) &&
+                          !(value instanceof Date) &&
+                          !(value as any).$oid &&
+                          !('$date' in value) &&
+                          !(value as any).$binary
+
+    if (isNestedObject) {
       Object.assign(flattened, flattenObject(value, newKey))
     } else {
       flattened[newKey] = value

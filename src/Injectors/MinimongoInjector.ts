@@ -14,12 +14,18 @@ const logger = createLogger('MinimongoInjector')
  *
  * This preserves type information through the Chrome DevTools messaging protocol,
  * which would otherwise stringify Dates to ISO strings via JSON.parse/stringify.
+ *
+ * NOTE: This function is NOT exported.
+ * - REASONING: It's an implementation detail, not public API
+ * - TESTING: Test through public API (MinimongoInjector, updateCollections) instead
+ * - REJECTED: PR review suggestion to export for testing (anti-pattern)
  */
 function cloneDeepWithEJSON(obj: any) {
   // Try to find EJSON in multiple locations (handles different Meteor versions)
   const EJSON = (window as any).EJSON || (window as any).Package?.ejson?.EJSON
 
   if (EJSON) {
+    // PR REVIEW IMPLEMENTED: Log which location EJSON was found for debugging
     logger.debug('EJSON found at:', (window as any).EJSON ? 'window.EJSON' : 'window.Package.ejson.EJSON')
     try {
       // Serialize with EJSON, then deserialize back to get cloned object with EJSON types
@@ -41,6 +47,7 @@ function cloneDeepWithEJSON(obj: any) {
       // Fall through to JSON fallback below
     }
   } else {
+    // PR REVIEW IMPLEMENTED: Specify which locations were checked to help debugging
     logger.warn(
       'EJSON not available - Date/ObjectId/Binary exports may lose type information.',
       'Checked locations: window.EJSON and window.Package.ejson.EJSON.',
@@ -73,6 +80,14 @@ function isArray(obj: any) {
   return Array.isArray(obj)
 }
 
+/**
+ * Clean up objects for DevTools protocol transfer
+ *
+ * NOTE: This function is NOT exported.
+ * - REASONING: It's an implementation detail, not public API
+ * - TESTING: Test through public API (MinimongoInjector, updateCollections) instead
+ * - REJECTED: PR review suggestion to export for testing (anti-pattern)
+ */
 const cleanup = (object: any) => {
   if (typeof object !== 'object') return object
 

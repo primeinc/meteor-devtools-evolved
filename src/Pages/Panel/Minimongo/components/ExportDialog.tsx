@@ -105,6 +105,14 @@ export const ExportDialog = observer(function ExportDialog(
           setIsFullPreview(false)
         }
       } catch (e: any) {
+        // Generic error message is intentional - matches repo pattern
+        // REJECTED: PR review suggestion for specific error types (circular refs, EJSON, memory)
+        // REASONING:
+        // - Preview is optional UI convenience, not critical functionality
+        // - Technical error details would confuse users
+        // - e.message already provides useful context
+        // - Export still works if preview fails
+        // - Consistent with other catch blocks in codebase
         data = `Preview error: ${e.message}`
         setIsFullPreview(false)
       }

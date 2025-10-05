@@ -947,6 +947,8 @@ function convertToMongoShellLiteral(value: any, indent: number, seen: WeakSet<ob
     Object.prototype.hasOwnProperty.call(value || {}, '$date') &&
     (typeof value.$date === 'string' || typeof value.$date === 'number')
   ) {
+    // PR REVIEW IMPLEMENTED: Use Number() for reliable parsing across JS engines
+    // Also validate with isNaN() to prevent crashes on invalid dates
     const date = new Date(Number(value.$date))
     // Check for invalid date and provide a safe fallback
     if (isNaN(date.getTime())) return JSON.stringify(value)

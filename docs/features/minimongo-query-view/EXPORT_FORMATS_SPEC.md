@@ -17,6 +17,13 @@ This feature provides 8 production-ready export formats for Minimongo data with 
 3. ❌ **MISSING:** Comprehensive test suite
 4. ⚠️ Partial: Error handling and validation
 
+**Quick Links:**
+- [Implementation File](../../../src/Pages/Panel/Minimongo/services/MongoExportFormats.ts) (796 lines)
+- [Critical Bugs Summary](#critical-bugs-summary)
+- [Fix Guide](#implementation-checklist)
+- [Test Specification](#test-specification)
+- [Security Requirements](#error-handling--validation)
+
 ---
 
 ## The 8 Export Formats
@@ -1276,47 +1283,214 @@ class ExportService {
 
 ## Implementation Checklist
 
-### Phase 1: Fix Critical Bugs ✅ (~6 hours)
+### Phase 1: Fix Critical Bugs (~8.5 hours)
 
-- [ ] **Fix getAllFields()** - Only return leaf values
-- [ ] **Fix TypeScript interface generation** - Use nested structure
-- [ ] **Fix Mongoose schema generation** - Use nested structure
-- [ ] **Fix string escaping** - Add backslash handling
-- [ ] **Fix CSV EJSON handling** - Use EJSON.stringify
-- [ ] **Add input validation** - Prevent injection, validate types
+**Day 1 (4 hours):**
 
-### Phase 2: Add Tests ✅ (~6 hours)
+- [ ] **09:00-09:30** (30 min) - Fix getAllFields() nested object handling
+  - File: `src/Pages/Panel/Minimongo/services/MongoExportFormats.ts:557`
+  - Change: Only add leaf values, skip parent objects
+  - Test: Add test case with nested objects
 
-- [ ] **Create test fixtures** - All edge cases covered
-- [ ] **Test EJSON detection** - All 3 patterns
-- [ ] **Test each format** - With all fixtures
-- [ ] **Test string escaping** - Special characters
-- [ ] **Test nested objects** - Verify correct structure
-- [ ] **Test error handling** - Invalid inputs
+- [ ] **09:30-11:30** (2 hours) - Fix TypeScript interface generation
+  - File: `src/Pages/Panel/Minimongo/services/MongoExportFormats.ts:320`
+  - Change: Build hierarchical schema tree instead of flat
+  - Test: Verify no dot-notation in output
 
-### Phase 3: Documentation ✅ (~2 hours)
+- [ ] **11:30-13:30** (2 hours) - Fix Mongoose schema generation
+  - File: `src/Pages/Panel/Minimongo/services/MongoExportFormats.ts:420`
+  - Change: Build hierarchical schema tree
+  - Test: Verify mongoose.Schema.Types usage
 
-- [x] **This specification document**
-- [ ] **API documentation** - JSDoc for all public functions
-- [ ] **Usage examples** - For each format
-- [ ] **Migration guide** - From old export to new
+**Day 2 (4.5 hours):**
 
-### Phase 4: Polish ⚠️ (~2 hours)
+- [ ] **09:00-09:30** (30 min) - Fix string escaping
+  - File: `src/Pages/Panel/Minimongo/services/MongoExportFormats.ts:455`
+  - Change: Add complete escape sequence (backslashes first!)
+  - Test: Test with backslashes, quotes, newlines
 
-- [ ] **Add ExportFormat.category** - Avoid hardcoded checks
-- [ ] **Improve size calculation** - Use actual bytes
-- [ ] **Schema caching** - Avoid recomputation
-- [ ] **Better error messages** - User-friendly
+- [ ] **09:30-09:45** (15 min) - Fix CSV EJSON handling
+  - File: `src/Pages/Panel/Minimongo/services/MongoExportFormats.ts:583`
+  - Change: Use EJSON.stringify for objects
+  - Test: Verify $date patterns preserved
+
+- [ ] **09:45-10:30** (45 min) - Add shell injection protection
+  - File: `src/Pages/Panel/Minimongo/services/MongoExportFormats.ts:100`
+  - Change: Validate collection name, use bracket notation
+  - Test: Test malicious collection names
+
+- [ ] **10:30-11:15** (45 min) - Add input validation
+  - File: `src/Pages/Panel/Minimongo/services/MongoExportFormats.ts` (new function)
+  - Change: Create validateExportInput() function
+  - Test: Test with invalid inputs
+
+- [ ] **11:15-11:45** (30 min) - Strengthen EJSON validation
+  - File: `src/Pages/Panel/Minimongo/services/MongoExportFormats.ts:600`
+  - Change: Add length/format checks to isObjectId, isEJSONDate
+  - Test: Test with malformed EJSON
+
+- [ ] **11:45-12:45** (1 hour) - Add error handling
+  - File: `src/Pages/Panel/Minimongo/services/MongoExportFormats.ts` (all formatters)
+  - Change: Wrap formatters in try/catch, validate inputs
+  - Test: Test with circular refs, null docs
+
+- [ ] **12:45-12:50** (5 min) - Fix additionalProperties
+  - File: `src/Pages/Panel/Minimongo/services/MongoExportFormats.ts:198`
+  - Change: Set additionalProperties: false
+  - Test: Verify in JSON Schema output
+
+### Phase 2: Add Tests (~6 hours)
+
+**Day 3 (6 hours):**
+
+- [ ] **09:00-09:30** (30 min) - Create test fixtures
+  - File: `src/Pages/Panel/Minimongo/services/__tests__/fixtures.ts`
+  - Content: SIMPLE_DOCS, EJSON_DOCS, NESTED_DOCS, etc.
+
+- [ ] **09:30-10:00** (30 min) - Test EJSON detection
+  - Tests: isObjectId, isEJSONDate, isEJSONBinary
+  - Cases: Valid, invalid, edge cases
+
+- [ ] **10:00-11:00** (1 hour) - Test MONGO_IMPORT formats
+  - Tests: NDJSON, Array, Compass
+  - Cases: Empty, single, multiple, EJSON preservation
+
+- [ ] **11:00-12:00** (1 hour) - Test MONGO_SHELL format
+  - Tests: EJSON conversion, string escaping, injection
+  - Cases: ObjectId(), ISODate(), special chars, malicious names
+
+- [ ] **12:00-13:00** (1 hour) - Test TYPESCRIPT_INTERFACE format
+  - Tests: Nested objects, optional fields, union types
+  - Cases: Flat, nested, mixed types, invalid names
+
+- [ ] **13:00-14:00** (1 hour) - Test MONGOOSE_SCHEMA format
+  - Tests: Nested objects, Schema.Types, required fields
+  - Cases: Flat, nested, mixed types, EJSON types
+
+- [ ] **14:00-14:30** (30 min) - Test JSON_SCHEMA format
+  - Tests: Integer vs number, format fields, required
+  - Cases: All types, nested, additionalProperties
+
+- [ ] **14:30-15:00** (30 min) - Test CSV format
+  - Tests: Flattening, EJSON, escaping
+  - Cases: Nested, special chars, EJSON preservation
+
+- [ ] **15:00-15:30** (30 min) - Test getAllFields()
+  - Tests: Leaf values only, no parent objects
+  - Cases: Nested, EJSON, arrays
+
+- [ ] **15:30-16:00** (30 min) - Test security
+  - Tests: Shell injection prevention
+  - Cases: All malicious patterns
+
+### Phase 3: Documentation (~2 hours)
+
+**Day 4 (2 hours):**
+
+- [ ] **09:00-09:30** (30 min) - Add JSDoc to all formatters
+  - File: `src/Pages/Panel/Minimongo/services/MongoExportFormats.ts`
+  - Content: @param, @returns, @throws, @example
+
+- [ ] **09:30-10:00** (30 min) - Create usage examples
+  - File: `docs/features/minimongo-query-view/EXPORT_EXAMPLES.md`
+  - Content: Example for each format with output
+
+- [ ] **10:00-10:30** (30 min) - Update API documentation
+  - File: `docs/features/minimongo-query-view/API.md`
+  - Content: ExportFormat interface, formatter signature
+
+- [ ] **10:30-11:00** (30 min) - Migration guide (if breaking changes)
+  - File: `docs/features/minimongo-query-view/MIGRATION.md`
+  - Content: Old API → New API mapping
+
+### Phase 4: Polish (~2 hours)
+
+**Day 5 (2 hours):**
+
+- [ ] **09:00-09:30** (30 min) - Add ExportFormat.category field
+  - File: `src/Pages/Panel/Minimongo/services/MongoExportFormats.ts:20`
+  - Change: Add category: 'data' | 'schema' | 'code'
+  - Benefit: UI can group formats, avoid hardcoded format.key checks
+
+- [ ] **09:30-10:00** (30 min) - Improve size calculation
+  - File: `src/Pages/Panel/Minimongo/components/ExportDialog.tsx`
+  - Change: Calculate actual bytes, not estimated from sample
+  - Benefit: Accurate size warnings
+
+- [ ] **10:00-10:30** (30 min) - Add schema caching
+  - File: `src/Pages/Panel/Minimongo/services/ExportService.ts`
+  - Change: Cache schema in Map, reuse across formats
+  - Benefit: 3x faster multi-format export
+
+- [ ] **10:30-11:00** (30 min) - Better error messages
+  - File: `src/Pages/Panel/Minimongo/services/MongoExportFormats.ts`
+  - Change: User-friendly errors with suggestions
+  - Example: "Collection name 'foo-bar' contains hyphens. Use 'foo_bar' or bracket notation."
+
+**Total Time:** 18.5 hours (8.5 bugs + 6 tests + 2 docs + 2 polish)
+
+---
+
+## Critical Bugs Summary
+
+Quick Reference for Implementers:
+
+| Bug | File | Line | Severity | Fix Time |
+|-----|------|------|----------|----------|
+| getAllFields() duplicates | MongoExportFormats.ts | 557 | 🔴 Critical | 30 min |
+| TypeScript invalid syntax | MongoExportFormats.ts | 320 | 🔴 Critical | 2 hours |
+| Mongoose invalid syntax | MongoExportFormats.ts | 420 | 🔴 Critical | 2 hours |
+| String escaping incomplete | MongoExportFormats.ts | 455 | 🟡 High | 30 min |
+| CSV EJSON loss | MongoExportFormats.ts | 583 | 🟡 High | 15 min |
+| Shell injection risk | MongoExportFormats.ts | 100 | 🔴 Critical | 45 min |
+| No input validation | MongoExportFormats.ts | N/A | 🟡 High | 45 min |
+| EJSON validation weak | MongoExportFormats.ts | 600 | 🟢 Medium | 30 min |
+| No error handling | MongoExportFormats.ts | All | 🟡 High | 1 hour |
+| additionalProperties: true | MongoExportFormats.ts | 198 | 🟢 Low | 5 min |
+
+**Total fix time:** ~8.5 hours
+**Total test time:** ~6 hours
+**Total:** ~14.5 hours
 
 ---
 
 ## Open Questions
 
-1. **additionalProperties**: Should it be configurable or always false?
-2. **Integer vs Float in Mongoose**: Should we add integer: true option?
-3. **Collection name validation**: Strict validation or bracket notation?
-4. **Streaming support**: Worth implementing for formatter signature?
-5. **Enum detection**: Should we infer enums from limited value sets?
+### Resolved Decisions
+
+1. **additionalProperties**: ✅ DECISION: Configurable via ExportOptions, default `false`
+   - Rationale: Strict validation by default, allow users to opt-in to permissive
+   - Implementation: Add `additionalProperties?: boolean` to ExportOptions
+   - Time: 15 minutes
+
+2. **Integer vs Float in Mongoose**: ✅ DECISION: Don't add `integer: true`
+   - Rationale: Mongoose doesn't enforce it, adds complexity for minimal value
+   - Mongoose already validates with `Number` type
+   - Time: N/A (no work needed)
+
+3. **Collection name validation**: ✅ DECISION: Bracket notation for invalid names
+   - Rationale: Be permissive (devtools shouldn't break), use JSON.stringify for safety
+   - Implementation: `db[${JSON.stringify(collectionName)}]`
+   - Time: 30 minutes (already in fix checklist)
+
+4. **Streaming support**: ⚠️ DECISION: Defer to Phase 5 (future optimization)
+   - Rationale: ByteAssembler works for now, streaming is complex
+   - Priority: Low (no user complaints about current performance)
+   - Time: 8 hours (if needed later)
+
+5. **Enum detection**: ✅ DECISION: Implement basic enum detection
+   - Rationale: High value for JSON Schema, easy to implement
+   - Implementation: If field has ≤5 unique string values, mark as enum
+   - Time: 1 hour
+   - Example: `theme: 'dark' | 'light'` → `enum: ['dark', 'light']`
+
+### New Open Questions
+
+6. **Performance benchmarking**: Should we add automated performance tests?
+   - Option A: Add performance.spec.ts with benchmarks
+   - Option B: Manual testing only
+   - Recommendation: Option A (catch regressions)
+   - Time: 2 hours
 
 ---
 

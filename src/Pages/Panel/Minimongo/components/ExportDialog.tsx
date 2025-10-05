@@ -180,8 +180,8 @@ export const ExportDialog = observer(function ExportDialog(
         />
 
         <Callout icon="info-sign" intent="primary" style={{ marginTop: 16 }}>
-          Note: Data types are inferred from the devtools sanitized snapshot.
-          Complex types like Dates may be stringified.
+          Note: Data types are preserved using EJSON serialization.
+          Date, ObjectId, and Binary types are exported with full type information.
         </Callout>
 
         {showPreview && !minimongoStore.isExportBusy && !minimongoStore.exportStatus.message && (

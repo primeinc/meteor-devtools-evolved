@@ -1,4 +1,6 @@
 // src/Pages/Panel/Minimongo/services/CopyFormats.ts
+import { safeCollectionAccessor, escapeMongoShellString } from './CollectionNameSanitizer'
+
 type Doc = Record<string, any>;
 
 const CIRCULAR_TOKEN = '__METEOR_DEVTOOLS_CIRCULAR_REFERENCE__';
@@ -120,6 +122,9 @@ export function toMongoQuery(collectionName: string, doc: Doc): string {
 
   traverse(doc);
 
+  // Sanitize collection name to prevent shell injection
+  const safeCollection = safeCollectionAccessor(collectionName);
+
   // Generate queries for most useful fields (max 3)
   const selectedFields = usefulFields.slice(0, 3);
 
@@ -127,13 +132,13 @@ export function toMongoQuery(collectionName: string, doc: Doc): string {
     const valueLit = typeof value === 'string'
       ? `"${value.replace(/"/g, '\\"')}"`
       : JSON.stringify(value);
-    queries.push(`db.${collectionName}.findOne({ "${path}": ${valueLit} })`);
+    queries.push(`${safeCollection}.findOne({ "${path}": ${valueLit} })`);
   }
 
   // Always include _id query as fallback
   if (doc._id) {
     const idLit = mongoIdLiteral(doc._id);
-    queries.push(`db.${collectionName}.findOne({ _id: ${idLit} })`);
+    queries.push(`${safeCollection}.findOne({ _id: ${idLit} })`);
   }
 
   const body = queries.join('\n');
@@ -183,7 +188,9 @@ export function toMongoInsert(collectionName: string, doc: Doc): string {
   const converted = convertEJSONValue(doc, '  ');
   const hasEjson = hasEjsonLike(doc);
 
-  const body = `db.${collectionName}.insertOne(\n${converted}\n)`;
+  // Sanitize collection name to prevent shell injection
+  const safeCollection = safeCollectionAccessor(collectionName);
+  const body = `${safeCollection}.insertOne(\n${converted}\n)`;
 
   return hasEjson
     ? `${EJSON_WARNING}\n${body}`

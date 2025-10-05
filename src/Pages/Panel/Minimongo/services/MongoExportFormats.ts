@@ -17,6 +17,7 @@
  */
 
 import EJSON from 'ejson'
+import { safeCollectionAccessor, escapeMongoShellString } from './CollectionNameSanitizer'
 
 // ============================================================================
 // Type Definitions
@@ -119,6 +120,8 @@ export const MONGO_COMPASS: ExportFormat = {
  *
  * Format: JavaScript for mongo shell
  * Usage: mongo < script.js
+ *
+ * SECURITY: Collection names sanitized to prevent injection
  */
 export const MONGO_SHELL: ExportFormat = {
   key: 'mongo-shell',
@@ -129,23 +132,26 @@ export const MONGO_SHELL: ExportFormat = {
   supportsMultipleCollections: true,
   formatter: (data: ExportData, options = {}) => {
     const docs = data.documents || []
-    const collectionName = data.collectionName || 'collection'
+    const rawCollectionName = data.collectionName || 'collection'
 
     if (docs.length === 0) {
       return `// No documents to insert\n`
     }
 
+    // SECURITY: Sanitize collection name to prevent shell injection
+    const safeCollection = safeCollectionAccessor(rawCollectionName)
+
     let script = `// MongoDB Shell Script\n`
-    script += `// Collection: ${collectionName}\n`
+    script += `// Collection: ${rawCollectionName}\n`  // Comment is safe, use raw name
     script += `// Documents: ${docs.length}\n`
     script += `// Generated: ${new Date().toISOString()}\n\n`
 
     if (docs.length === 1) {
-      script += `db.${collectionName}.insertOne(\n`
+      script += `${safeCollection}.insertOne(\n`
       script += convertToMongoShellLiteral(docs[0], 1)
       script += `\n);\n`
     } else {
-      script += `db.${collectionName}.insertMany([\n`
+      script += `${safeCollection}.insertMany([\n`
       docs.forEach((doc, i) => {
         script += convertToMongoShellLiteral(doc, 1)
         if (i < docs.length - 1) script += ','
@@ -156,7 +162,7 @@ export const MONGO_SHELL: ExportFormat = {
 
     // Add verification query
     script += `\n// Verify\n`
-    script += `db.${collectionName}.countDocuments(); // Should be ${docs.length}\n`
+    script += `${safeCollection}.countDocuments(); // Should be ${docs.length}\n`
 
     return script
   }
@@ -887,7 +893,15 @@ function convertToMongoShellLiteral(value: any, indent: number): string {
 
   // Primitives
   if (typeof value === 'string') {
-    return `"${value.replace(/"/g, '\\"').replace(/\n/g, '\\n')}"`
+    // SECURITY: Escape all special characters (backslashes FIRST!)
+    const escaped = value
+      .replace(/\\/g, '\\\\')   // Backslashes must be first!
+      .replace(/"/g, '\\"')      // Double quotes
+      .replace(/\n/g, '\\n')     // Newlines
+      .replace(/\r/g, '\\r')     // Carriage returns
+      .replace(/\t/g, '\\t')     // Tabs
+      .replace(/\0/g, '\\0')     // Null bytes
+    return `"${escaped}"`
   }
 
   if (typeof value === 'number' || typeof value === 'boolean') {

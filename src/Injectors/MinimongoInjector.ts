@@ -14,14 +14,21 @@ import throttle from 'lodash.throttle'
  * which would otherwise stringify Dates to ISO strings via JSON.parse/stringify.
  */
 function cloneDeepWithEJSON(obj: any) {
-  // Use Meteor's global EJSON if available, otherwise fallback to JSON
-  if (typeof (window as any).EJSON !== 'undefined') {
+  // Try to find EJSON in multiple locations (handles different Meteor versions)
+  const EJSON = (window as any).EJSON || (window as any).Package?.ejson?.EJSON
+
+  if (EJSON) {
     // Serialize with EJSON, then deserialize back to get cloned object with EJSON types
-    const serialized = (window as any).EJSON.stringify(obj)
-    return (window as any).EJSON.parse(serialized)
+    const serialized = EJSON.stringify(obj)
+    return EJSON.parse(serialized)
   }
 
   // Fallback to regular JSON (will lose Date objects)
+  // This should rarely happen, but can occur if injector runs before Meteor loads
+  console.warn(
+    '[Meteor DevTools] EJSON not available - Date/ObjectId/Binary exports may lose type information. ' +
+    'Try refreshing the page or waiting for Meteor to fully load.'
+  )
   return JSON.parse(JSON.stringify(obj))
 }
 

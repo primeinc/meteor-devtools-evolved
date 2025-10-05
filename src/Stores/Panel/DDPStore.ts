@@ -24,6 +24,10 @@ class SearchableEventEmitter<T> extends Searchable<T> {
   once(event: string, fn: (...args: any[]) => void) {
     return this.emitter.once(event, fn)
   }
+
+  removeAllListeners(event?: string) {
+    return this.emitter.removeAllListeners(event)
+  }
 }
 
 export class DDPStore extends SearchableEventEmitter<DDPLog> {

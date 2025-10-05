@@ -24,6 +24,13 @@ describe('DDPStore', () => {
     store = new DDPStore()
   })
 
+  afterEach(() => {
+    // Clean up event listeners to prevent worker process warnings
+    if (store && typeof store.removeAllListeners === 'function') {
+      store.removeAllListeners()
+    }
+  })
+
   describe('EventEmitter integration', () => {
     it('should emit ddp-changed events when changed messages arrive', () => {
       const listener = jest.fn()

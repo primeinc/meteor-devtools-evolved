@@ -126,6 +126,22 @@ const cleanup = (object: any) => {
         return
       }
 
+      // EJSON.parse converts {$binary: "..."} to Uint8Array instances
+      // Convert these back to EJSON wire format {$binary: base64} for DevTools protocol
+      if (clonedObject[key] instanceof Uint8Array) {
+        const EJSON = getEJSON()
+        if (EJSON) {
+          // Use EJSON.toJSONValue to get proper {$binary: ...} format
+          clonedObject[key] = EJSON.toJSONValue(clonedObject[key])
+        } else {
+          // Fallback: Manual base64 encoding (unlikely but safe)
+          const bytes = clonedObject[key] as Uint8Array
+          const base64 = btoa(String.fromCharCode(...bytes))
+          clonedObject[key] = { $binary: base64 }
+        }
+        return
+      }
+
       // Handle other non-plain objects (excluding EJSON types)
       if (clonedObject[key].constructor.name !== 'Object' &&
           !clonedObject[key].$date &&

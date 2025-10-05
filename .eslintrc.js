@@ -1,6 +1,7 @@
 const { merge } = require('lodash')
 
 module.exports = merge(require('@tstt/eslint-config/index.js'), {
+  plugins: ['jsdoc'],
   rules: {
     'global-require': 0,
     '@typescript-eslint/no-var-requires': 0,
@@ -11,8 +12,8 @@ module.exports = merge(require('@tstt/eslint-config/index.js'), {
         ignoreProperties: true,
       },
     ],
-    // Require JSDoc comments for exported functions
-    'require-jsdoc': [
+    // JSDoc validation - using modern eslint-plugin-jsdoc
+    'jsdoc/require-jsdoc': [
       'warn',
       {
         require: {
@@ -22,20 +23,17 @@ module.exports = merge(require('@tstt/eslint-config/index.js'), {
           ArrowFunctionExpression: false,
           FunctionExpression: false,
         },
+        contexts: [
+          'ExportNamedDeclaration > FunctionDeclaration',
+          'ExportDefaultDeclaration > FunctionDeclaration',
+        ],
       },
     ],
-    // Validate JSDoc comments when present
-    'valid-jsdoc': [
-      'warn',
-      {
-        requireReturn: false,
-        requireParamDescription: true,
-        requireReturnDescription: false,
-        prefer: {
-          return: 'returns',
-        },
-      },
-    ],
+    'jsdoc/require-param-description': 'warn',
+    'jsdoc/require-returns-description': 'off',
+    'jsdoc/check-param-names': 'warn',
+    'jsdoc/check-tag-names': 'warn',
+    'jsdoc/check-types': 'warn',
   },
   globals: { Meteor: 'readonly', i18n: 'readonly' },
 })

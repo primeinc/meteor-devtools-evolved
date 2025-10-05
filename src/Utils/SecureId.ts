@@ -22,14 +22,9 @@ export function generateSecureRandomString(length = 16): string {
  * @returns UUID string
  */
 export function generateSecureUUID(): string {
-  // Use optional chaining for simpler crypto.randomUUID availability check
-  const uuid = (globalThis.crypto as any)?.randomUUID?.()
-  if (uuid) {
-    return uuid
-  }
-  // Fallback: generate secure random hex string in UUID format (8-4-4-4-12 hex chars)
-  // Each byte generates 2 hex chars, so divide by 2
-  return `${generateSecureRandomString(4)}-${generateSecureRandomString(2)}-${generateSecureRandomString(2)}-${generateSecureRandomString(2)}-${generateSecureRandomString(6)}`
+  // Use optional chaining for simpler crypto.randomUUID availability check and fallback
+  return (globalThis.crypto as any)?.randomUUID?.() ||
+    `${generateSecureRandomString(4)}-${generateSecureRandomString(2)}-${generateSecureRandomString(2)}-${generateSecureRandomString(2)}-${generateSecureRandomString(6)}`
 }
 
 /**

@@ -75,7 +75,7 @@ export const ExportDialog = observer(function ExportDialog(
     let fullOutput = '' // Hoist to function scope for size calculation
 
     // For schema/type generation formats, show summary
-    const isSchemaFormat = ['json-schema', 'typescript', 'mongoose'].includes(selectedFormat.key)
+    const isSchemaFormat = selectedFormat.category === 'schema'
 
     if (isSchemaFormat) {
       setIsFullPreview(false)

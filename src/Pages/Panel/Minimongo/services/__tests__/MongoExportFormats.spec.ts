@@ -18,6 +18,7 @@ import {
   MONGOOSE_SCHEMA,
   JSON_SCHEMA,
   CSV,
+  ALL_FORMATS,
 } from '../MongoExportFormats'
 
 // Test data with all EJSON types (using correct Meteor EJSON format)
@@ -557,6 +558,41 @@ describe('MongoExportFormats - Invalid Identifier Handling', () => {
 
       expect(result).toContain('const _123usersSchema = new mongoose.Schema')
       expect(result).toContain("module.exports = mongoose.model('_123users'")
+    })
+  })
+})
+
+describe('MongoExportFormats - Category Field', () => {
+  it('should have category "data" for data export formats', () => {
+    const dataFormats = [
+      MONGO_IMPORT_NDJSON,
+      MONGO_IMPORT_ARRAY,
+      MONGO_COMPASS,
+      MONGO_SHELL,
+      CSV,
+    ]
+
+    dataFormats.forEach(format => {
+      expect(format.category).toBe('data')
+    })
+  })
+
+  it('should have category "schema" for schema generation formats', () => {
+    const schemaFormats = [
+      TYPESCRIPT_INTERFACE,
+      MONGOOSE_SCHEMA,
+      JSON_SCHEMA,
+    ]
+
+    schemaFormats.forEach(format => {
+      expect(format.category).toBe('schema')
+    })
+  })
+
+  it('should have category field in ALL_FORMATS', () => {
+    ALL_FORMATS.forEach(format => {
+      expect(format.category).toBeDefined()
+      expect(['data', 'schema']).toContain(format.category)
     })
   })
 })

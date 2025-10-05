@@ -29,6 +29,7 @@ export interface ExportFormat {
   description: string
   extension: string
   mimeType: string
+  category: 'data' | 'schema'  // 'data' = document export, 'schema' = type/schema generation
   supportsMultipleCollections: boolean
   formatter: (data: ExportData, options?: ExportOptions) => string
 }
@@ -62,6 +63,7 @@ export const MONGO_IMPORT_NDJSON: ExportFormat = {
   description: 'Line-delimited Extended JSON for mongoimport',
   extension: 'json',
   mimeType: 'application/x-ndjson',
+  category: 'data',
   supportsMultipleCollections: false,
   formatter: (data: ExportData, options = {}) => {
     const docs = data.documents || []
@@ -85,6 +87,7 @@ export const MONGO_IMPORT_ARRAY: ExportFormat = {
   description: 'Extended JSON array for mongoimport --jsonArray',
   extension: 'json',
   mimeType: 'application/json',
+  category: 'data',
   supportsMultipleCollections: false,
   formatter: (data: ExportData, options = {}) => {
     const docs = data.documents || []
@@ -106,6 +109,7 @@ export const MONGO_COMPASS: ExportFormat = {
   description: 'JSON array for MongoDB Compass import',
   extension: 'json',
   mimeType: 'application/json',
+  category: 'data',
   supportsMultipleCollections: false,
   formatter: (data: ExportData, options = {}) => {
     const docs = data.documents || []
@@ -129,6 +133,7 @@ export const MONGO_SHELL: ExportFormat = {
   description: 'JavaScript for MongoDB shell (insertMany)',
   extension: 'js',
   mimeType: 'application/javascript',
+  category: 'data',
   supportsMultipleCollections: true,
   formatter: (data: ExportData, options = {}) => {
     const docs = data.documents || []
@@ -180,6 +185,7 @@ export const TYPESCRIPT_INTERFACE: ExportFormat = {
   description: 'Auto-generated TypeScript interface',
   extension: 'ts',
   mimeType: 'text/typescript',
+  category: 'schema',
   supportsMultipleCollections: false,
   formatter: (data: ExportData, options = {}) => {
     const docs = data.documents || []
@@ -221,6 +227,7 @@ export const MONGOOSE_SCHEMA: ExportFormat = {
   description: 'Auto-generated Mongoose schema',
   extension: 'js',
   mimeType: 'application/javascript',
+  category: 'schema',
   supportsMultipleCollections: false,
   formatter: (data: ExportData, options = {}) => {
     const docs = data.documents || []
@@ -268,6 +275,7 @@ export const JSON_SCHEMA: ExportFormat = {
   description: 'JSON Schema (draft 2020-12)',
   extension: 'schema.json',
   mimeType: 'application/schema+json',
+  category: 'schema',
   supportsMultipleCollections: false,
   formatter: (data: ExportData, options = {}) => {
     const docs = data.documents || []
@@ -301,6 +309,7 @@ export const CSV: ExportFormat = {
   description: 'CSV export (nested objects are lossy)',
   extension: 'csv',
   mimeType: 'text/csv',
+  category: 'data',
   supportsMultipleCollections: false,
   formatter: (data: ExportData, options = {}) => {
     const docs = data.documents || []
@@ -946,35 +955,6 @@ function convertToMongoShellLiteral(value: any, indent: number): string {
 // ============================================================================
 
 /**
- * Get all fields from a document (including nested)
- */
-function getAllFields(obj: any, prefix = ''): Record<string, any> {
-  const fields: Record<string, any> = {}
-
-  if (!obj || typeof obj !== 'object') return fields
-
-  Object.entries(obj).forEach(([key, value]) => {
-    const path = prefix ? `${prefix}.${key}` : key
-
-    // Check if nested object (not EJSON, not array, not Date)
-    const isNested = value && typeof value === 'object' &&
-                     !Array.isArray(value) &&
-                     !(value instanceof Date) &&
-                     !(value as any).$oid && !(value as any).$date && !(value as any).$binary
-
-    if (isNested) {
-      // Recurse into nested objects, DON'T add parent
-      Object.assign(fields, getAllFields(value, path))
-    } else {
-      // Only add leaf values (primitives, arrays, EJSON, Date instances)
-      fields[path] = value
-    }
-  })
-
-  return fields
-}
-
-/**
  * Schema tree node representing inferred structure
  *
  * Based on research:
@@ -1010,8 +990,8 @@ interface SchemaNode {
  * 2. Reduce: Merge field information across all documents
  * 3. Result: Tree structure with type probabilities and nesting
  *
- * This approach differs from getAllFields() which returns flat dot notation.
- * Schema tree preserves hierarchical structure needed for code generation.
+ * Schema tree preserves hierarchical structure needed for code generation,
+ * unlike flat dot notation approaches.
  *
  * @param docs - Array of documents to analyze
  * @param totalDocs - Total document count (for required field calculation)

@@ -194,8 +194,7 @@ export const TYPESCRIPT_INTERFACE: ExportFormat = {
 
     Object.entries(schema.properties).forEach(([key, prop]) => {
       const optional = !schema.required.includes(key)
-      const typeStr = formatTypeScriptType(prop)
-      code += `  ${key}${optional ? '?' : ''}: ${typeStr};\n`
+      code += `  ${key}${optional ? '?' : ''}: ${prop.type};\n`
     })
 
     code += `}\n`
@@ -358,81 +357,154 @@ interface TypeScriptProperty {
   possibleTypes?: string[] // For union types
 }
 
+/**
+ * Infer TypeScript schema from documents using hierarchical schema tree
+ *
+ * Generates proper nested interfaces instead of flat dot notation.
+ * Uses buildSchemaTree() for correct nested object handling.
+ */
 function inferTypeScriptSchema(docs: any[]): TypeScriptSchema {
-  const fieldInfo = new Map<string, Set<string>>()
-  const fieldPresence = new Map<string, number>()
+  if (!docs || docs.length === 0) {
+    return { properties: {}, required: [] }
+  }
 
-  docs.forEach(doc => {
-    const fields = getAllFields(doc)
-
-    Object.entries(fields).forEach(([path, value]) => {
-      if (!fieldInfo.has(path)) {
-        fieldInfo.set(path, new Set())
-      }
-      fieldInfo.get(path)!.add(detectTypeScriptType(value))
-      fieldPresence.set(path, (fieldPresence.get(path) || 0) + 1)
-    })
-  })
-
+  const tree = buildSchemaTree(docs, docs.length)
   const properties: Record<string, TypeScriptProperty> = {}
   const required: string[] = []
 
-  fieldInfo.forEach((types, path) => {
-    const typeArray = Array.from(types)
-    const isRequired = fieldPresence.get(path) === docs.length
+  if (!tree.children) {
+    return { properties, required }
+  }
 
-    if (isRequired) {
-      required.push(path)
-    }
+  // Convert each top-level field
+  tree.children.forEach((node, key) => {
+    properties[key] = schemaNodeToTypeScript(node, docs.length)
 
-    if (typeArray.length === 1) {
-      properties[path] = { type: typeArray[0] }
-    } else {
-      // Union type
-      properties[path] = {
-        type: typeArray.join(' | '),
-        possibleTypes: typeArray
-      }
+    // Mark as required if present in all documents
+    if (node.count === docs.length) {
+      required.push(key)
     }
   })
 
-  return { properties, required }
+  return {
+    properties: Object.fromEntries(
+      Object.entries(properties).sort(([a], [b]) => a.localeCompare(b))
+    ),
+    required: required.sort()
+  }
 }
 
-function detectTypeScriptType(value: any): string {
-  if (value === null) return 'null'
-  if (value === undefined) return 'undefined'
+/**
+ * Convert SchemaNode to TypeScript type string
+ */
+function schemaNodeToTypeScript(node: SchemaNode, totalDocs: number): TypeScriptProperty {
+  const types = Array.from(node.types).filter(t => t !== 'null')
 
-  // EJSON types
-  if (value instanceof Date) return 'Date'
-  if (value?.$date) return 'Date'
-  if (value?.$oid) return 'string' // ObjectID is string in TS
-  if (value?.$binary) return 'Buffer'
-
-  // Primitive types
-  if (typeof value === 'string') return 'string'
-  if (typeof value === 'number') return 'number'
-  if (typeof value === 'boolean') return 'boolean'
-
-  // Arrays
-  if (Array.isArray(value)) {
-    if (value.length === 0) return 'any[]'
-
-    const itemTypes = new Set(value.map(detectTypeScriptType))
-    if (itemTypes.size === 1) {
-      return `${Array.from(itemTypes)[0]}[]`
-    }
-    return 'any[]' // Mixed array
+  // Handle null-only case
+  if (types.length === 0) {
+    return { type: 'null' }
   }
 
-  // Objects
-  if (typeof value === 'object') return 'Record<string, any>'
+  // Single type
+  if (types.length === 1) {
+    const type = types[0]
 
-  return 'any'
+    if (type === 'object' && node.children) {
+      // Nested object - generate nested interface syntax
+      const nestedFields: string[] = []
+      const nestedRequired: string[] = []
+
+      node.children.forEach((childNode, key) => {
+        const childProp = schemaNodeToTypeScript(childNode, totalDocs)
+        const isRequired = childNode.count === totalDocs
+        if (isRequired) nestedRequired.push(key)
+
+        const optional = !isRequired ? '?' : ''
+        nestedFields.push(`${key}${optional}: ${childProp.type}`)
+      })
+
+      // Sort fields alphabetically
+      nestedFields.sort()
+
+      return { type: `{ ${nestedFields.join('; ')} }` }
+    }
+
+    if (type === 'array') {
+      // Array type
+      if (node.arrayItemTypes && node.arrayItemTypes.size > 0) {
+        const itemTypes = Array.from(node.arrayItemTypes)
+
+        // Nested array - collapse
+        if (itemTypes.includes('array')) {
+          return { type: 'any[]' }
+        }
+
+        // Object array with distinct shapes
+        if (itemTypes.includes('object') && node.arrayItemShapes) {
+          const shapes = Array.from(node.arrayItemShapes.values())
+
+          // Collapse if > 5 shapes
+          if (shapes.length > 5) {
+            return { type: 'any[]' }
+          }
+
+          // Generate union of shapes
+          const shapeTypes = shapes.map(shapeInfo => {
+            const shapeProp = schemaNodeToTypeScript(shapeInfo.schema, node.arrayItemCount || 0)
+            return shapeProp.type
+          }).filter(t => t !== '{}')
+
+          if (shapeTypes.length === 0) {
+            return { type: 'any[]' }
+          }
+
+          if (shapeTypes.length === 1) {
+            return { type: `${shapeTypes[0]}[]` }
+          }
+
+          return { type: `(${shapeTypes.join(' | ')})[]` }
+        }
+
+        // Primitive array
+        if (itemTypes.length === 1) {
+          const itemType = mapTypeScriptType(itemTypes[0])
+          return { type: `${itemType}[]` }
+        }
+
+        // Mixed primitive array
+        const unionTypes = itemTypes.map(mapTypeScriptType).join(' | ')
+        return { type: `(${unionTypes})[]` }
+      }
+
+      return { type: 'any[]' }
+    }
+
+    // Primitive type
+    return { type: mapTypeScriptType(type) }
+  }
+
+  // Multiple types - union
+  const unionTypes = types.map(mapTypeScriptType).sort().join(' | ')
+  return { type: unionTypes }
 }
 
-function formatTypeScriptType(prop: TypeScriptProperty): string {
-  return prop.type
+/**
+ * Map semantic types to TypeScript types
+ */
+function mapTypeScriptType(semanticType: string): string {
+  switch (semanticType) {
+    case 'ObjectId': return 'string'
+    case 'Date': return 'Date'
+    case 'Buffer': return 'Buffer'
+    case 'string': return 'string'
+    case 'number': return 'number'
+    case 'boolean': return 'boolean'
+    case 'null': return 'null'
+    case 'undefined': return 'undefined'
+    case 'array': return 'any[]'
+    case 'object': return 'Record<string, any>'
+    default: return 'any'
+  }
 }
 
 // ============================================================================
@@ -450,86 +522,144 @@ interface MongooseProperty {
   ref?: string
 }
 
+/**
+ * Infer Mongoose schema from documents using hierarchical schema tree
+ *
+ * Generates proper nested schemas instead of flat dot notation.
+ * Uses buildSchemaTree() for correct nested object handling.
+ */
 function inferMongooseSchema(docs: any[]): MongooseSchema {
-  const fieldInfo = new Map<string, Set<string>>()
-  const fieldPresence = new Map<string, number>()
+  if (!docs || docs.length === 0) {
+    return { properties: {}, required: [] }
+  }
 
-  docs.forEach(doc => {
-    const fields = getAllFields(doc)
-
-    Object.entries(fields).forEach(([path, value]) => {
-      if (!fieldInfo.has(path)) {
-        fieldInfo.set(path, new Set())
-      }
-      fieldInfo.get(path)!.add(detectMongooseType(value))
-      fieldPresence.set(path, (fieldPresence.get(path) || 0) + 1)
-    })
-  })
-
+  const tree = buildSchemaTree(docs, docs.length)
   const properties: Record<string, MongooseProperty> = {}
   const required: string[] = []
 
-  fieldInfo.forEach((types, path) => {
-    const typeArray = Array.from(types)
-    const isRequired = fieldPresence.get(path) === docs.length
+  if (!tree.children) {
+    return { properties, required }
+  }
 
-    if (isRequired) {
-      required.push(path)
-    }
+  // Convert each top-level field
+  tree.children.forEach((node, key) => {
+    properties[key] = schemaNodeToMongoose(node, docs.length)
 
-    if (typeArray.length === 1) {
-      properties[path] = { type: typeArray[0] }
-    } else {
-      // Mixed type
-      properties[path] = { type: 'Schema.Types.Mixed' }
+    // Mark as required if present in all documents
+    if (node.count === docs.length) {
+      required.push(key)
     }
   })
 
-  return { properties, required }
+  return {
+    properties: Object.fromEntries(
+      Object.entries(properties).sort(([a], [b]) => a.localeCompare(b))
+    ),
+    required: required.sort()
+  }
 }
 
-function detectMongooseType(value: any): string {
-  if (value === null || value === undefined) return 'Schema.Types.Mixed'
+/**
+ * Convert SchemaNode to Mongoose schema type string
+ */
+function schemaNodeToMongoose(node: SchemaNode, totalDocs: number): MongooseProperty {
+  const types = Array.from(node.types).filter(t => t !== 'null')
 
-  // EJSON types
-  if (value instanceof Date) return 'Date'
-  if (value?.$date) return 'Date'
-  if (value?.$oid) return 'Schema.Types.ObjectId'
-  if (value?.$binary) return 'Buffer'
-
-  // Primitive types
-  if (typeof value === 'string') return 'String'
-  if (typeof value === 'number') {
-    return Number.isInteger(value) ? 'Number' : 'Number'
+  // Handle null-only or mixed types
+  if (types.length === 0 || types.length > 1) {
+    return { type: 'Schema.Types.Mixed' }
   }
-  if (typeof value === 'boolean') return 'Boolean'
 
-  // Arrays
-  if (Array.isArray(value)) {
-    if (value.length === 0) return 'Array'
-    const itemTypes = new Set(value.map(detectMongooseType))
-    if (itemTypes.size === 1) {
-      return `[${Array.from(itemTypes)[0]}]`
+  // Single type
+  const type = types[0]
+
+  if (type === 'object' && node.children) {
+    // Nested object - generate nested schema syntax
+    const nestedFields: string[] = []
+
+    node.children.forEach((childNode, key) => {
+      const childProp = schemaNodeToMongoose(childNode, totalDocs)
+      const isRequired = childNode.count === totalDocs
+
+      nestedFields.push(`${key}: ${formatMongooseType(childProp, isRequired)}`)
+    })
+
+    // Sort fields alphabetically
+    nestedFields.sort()
+
+    return { type: `{ ${nestedFields.join(', ')} }` }
+  }
+
+  if (type === 'array') {
+    // Array type
+    if (node.arrayItemTypes && node.arrayItemTypes.size > 0) {
+      const itemTypes = Array.from(node.arrayItemTypes)
+
+      // Nested array or mixed - use Mixed
+      if (itemTypes.includes('array') || itemTypes.length > 1) {
+        return { type: 'Array' }
+      }
+
+      // Object array with distinct shapes
+      if (itemTypes.includes('object') && node.arrayItemShapes) {
+        const shapes = Array.from(node.arrayItemShapes.values())
+
+        // Collapse if > 5 shapes
+        if (shapes.length > 5) {
+          return { type: 'Array' }
+        }
+
+        // For Mongoose, if multiple shapes, use Mixed
+        if (shapes.length > 1) {
+          return { type: 'Array' }
+        }
+
+        // Single shape - generate nested schema
+        const shapeProp = schemaNodeToMongoose(shapes[0].schema, node.arrayItemCount || 0)
+        return { type: `[${shapeProp.type}]` }
+      }
+
+      // Single primitive type
+      const itemType = mapMongooseType(itemTypes[0])
+      return { type: `[${itemType}]` }
     }
-    return 'Array'
+
+    return { type: 'Array' }
   }
 
-  // Objects
-  if (typeof value === 'object') return 'Schema.Types.Mixed'
-
-  return 'Schema.Types.Mixed'
+  // Primitive type
+  return { type: mapMongooseType(type) }
 }
 
-function formatMongooseType(prop: MongooseProperty, required: boolean): string {
-  const typeStr = prop.type.startsWith('[')
-    ? prop.type // Already array format
-    : prop.type
+/**
+ * Map semantic types to Mongoose types
+ */
+function mapMongooseType(semanticType: string): string {
+  switch (semanticType) {
+    case 'ObjectId': return 'Schema.Types.ObjectId'
+    case 'Date': return 'Date'
+    case 'Buffer': return 'Buffer'
+    case 'string': return 'String'
+    case 'number': return 'Number'
+    case 'boolean': return 'Boolean'
+    case 'array': return 'Array'
+    case 'object': return 'Schema.Types.Mixed'
+    default: return 'Schema.Types.Mixed'
+  }
+}
 
-  if (!required) {
-    return `{ type: ${typeStr}, required: false }`
+/**
+ * Format Mongoose type with required flag
+ */
+function formatMongooseType(prop: MongooseProperty, required: boolean): string {
+  const typeStr = prop.type
+
+  // If type is already a nested object or array, return as-is
+  if (typeStr.startsWith('{') || typeStr.startsWith('[')) {
+    return typeStr
   }
 
-  return `{ type: ${typeStr}, required: true }`
+  return `{ type: ${typeStr}, required: ${required} }`
 }
 
 // ============================================================================

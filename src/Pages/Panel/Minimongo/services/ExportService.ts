@@ -103,6 +103,13 @@ export const ExportService = {
     }
 
     // Generate formatted output
+    // DESIGN TRADEOFF: Generates entire output in memory for code simplicity
+    // Previous implementation used ByteAssembler for streaming/chunked generation
+    // Current approach:
+    //   - PROS: Simpler code, works for most use cases
+    //   - CONS: Higher memory usage for very large exports (>250MB)
+    //   - MITIGATION: UI shows warning for large exports (see ExportDialog.tsx:125)
+    // TODO: Re-evaluate ByteAssembler streaming if large exports become common use case
     const output = format.formatter(exportData, options)
 
     onProgress(0.90, 'Creating file...')

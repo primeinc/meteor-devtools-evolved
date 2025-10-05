@@ -152,14 +152,17 @@ db.users.insertMany([
 **String Escaping Rules:**
 ```javascript
 // MUST escape in order:
-1. Backslashes: \ → \\
+1. Backslashes FIRST: \ → \\ (must be first to avoid double-escaping)
 2. Quotes: " → \"
 3. Newlines: \n → \\n
 4. Tabs: \t → \\t
 
-// Example:
-value = 'C:\Users\test\nfile.txt'
-escaped = 'C:\\Users\\test\\nfile.txt'
+// Example (escaping order matters!):
+value = 'C:\\path\\to\nfile.txt'   // Input: backslash-path-backslash-to-newline-file.txt
+// Step 1: Escape backslashes: \\ → \\\\
+intermediate = 'C:\\\\path\\\\to\nfile.txt'
+// Step 2: Escape newlines: \n → \\n
+escaped = 'C:\\\\path\\\\to\\nfile.txt'
 ```
 
 **Security:**
@@ -739,6 +742,17 @@ function getAllFields(obj: any, prefix = ''): Record<string, any> {
 
 **Expected (CORRECT):**
 ```typescript
+// Helper: Check if value is a plain nested object (not array, Date, null, etc.)
+function isNestedObject(value: any): boolean {
+  return value !== null &&
+         typeof value === 'object' &&
+         !Array.isArray(value) &&
+         !(value instanceof Date) &&
+         !value.$date &&  // EJSON Date
+         !value.$oid &&   // EJSON ObjectId
+         !value.$binary   // EJSON Binary
+}
+
 function getAllFields(obj: any, prefix = ''): Record<string, any> {
   const fields: Record<string, any> = {}
 
@@ -821,6 +835,27 @@ function analyzeObject(
   Object.values(schema).forEach(node => {
     node.required = node.count === totalDocs;
   });
+}
+
+// Helper: Generate nested interface fields with proper indentation
+function generateNestedFields(children: Record<string, SchemaNode>, indent: number): string {
+  const spaces = '  '.repeat(indent);
+  let output = '';
+
+  Object.entries(children).forEach(([key, node]) => {
+    const optional = node.required ? '' : '?';
+
+    if (node.children) {
+      // Nested object → recurse
+      output += `${spaces}${key}${optional}: {\n`;
+      output += generateNestedFields(node.children, indent + 1);
+      output += `${spaces}};\n`;
+    } else {
+      output += `${spaces}${key}${optional}: ${node.type};\n`;
+    }
+  });
+
+  return output;
 }
 
 function generateTypeScript(schema: SchemaNode, name: string): string {

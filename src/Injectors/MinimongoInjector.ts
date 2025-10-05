@@ -20,6 +20,7 @@ function cloneDeepWithEJSON(obj: any) {
   const EJSON = (window as any).EJSON || (window as any).Package?.ejson?.EJSON
 
   if (EJSON) {
+    logger.debug('EJSON found at:', (window as any).EJSON ? 'window.EJSON' : 'window.Package.ejson.EJSON')
     try {
       // Serialize with EJSON, then deserialize back to get cloned object with EJSON types
       const serialized = EJSON.stringify(obj)
@@ -42,6 +43,7 @@ function cloneDeepWithEJSON(obj: any) {
   } else {
     logger.warn(
       'EJSON not available - Date/ObjectId/Binary exports may lose type information.',
+      'Checked locations: window.EJSON and window.Package.ejson.EJSON.',
       'Try refreshing the page or waiting for Meteor to fully load.'
     )
   }

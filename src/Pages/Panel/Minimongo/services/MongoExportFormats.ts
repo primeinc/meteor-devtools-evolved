@@ -947,7 +947,9 @@ function convertToMongoShellLiteral(value: any, indent: number, seen: WeakSet<ob
     Object.prototype.hasOwnProperty.call(value || {}, '$date') &&
     (typeof value.$date === 'string' || typeof value.$date === 'number')
   ) {
-    const date = new Date(value.$date)
+    const date = new Date(Number(value.$date))
+    // Check for invalid date and provide a safe fallback
+    if (isNaN(date.getTime())) return JSON.stringify(value)
     return `ISODate("${date.toISOString()}")`
   }
 
@@ -961,8 +963,9 @@ function convertToMongoShellLiteral(value: any, indent: number, seen: WeakSet<ob
 
   // Primitives
   if (typeof value === 'string') {
-    // SECURITY: Use centralized sanitizer to escape all special characters
-    // Reuses escapeMongoShellString from CollectionNameSanitizer.ts
+    // SECURITY: Escape special characters for safe inclusion in MongoDB shell string literals
+    // Uses escapeMongoShellString from CollectionNameSanitizer.ts, which escapes quotes,
+    // backslashes, and control characters as required by the MongoDB shell
     return `"${escapeMongoShellString(value)}"`
   }
 
@@ -1346,7 +1349,8 @@ function formatValueForCSV(value: any): string {
     Object.prototype.hasOwnProperty.call(value || {}, '$date') &&
     (typeof value.$date === 'string' || typeof value.$date === 'number')
   ) {
-    return new Date(value.$date).toISOString()
+    const date = new Date(Number(value.$date))
+    return !isNaN(date.getTime()) ? date.toISOString() : JSON.stringify(value)
   }
 
   if (value?.$oid && typeof value.$oid === 'string' && /^[a-fA-F0-9]{24}$/.test(value.$oid)) {

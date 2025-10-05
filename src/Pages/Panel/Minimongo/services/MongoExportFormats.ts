@@ -695,7 +695,7 @@ function formatMongooseType(prop: MongooseProperty, required: boolean): string {
 // ============================================================================
 
 interface JSONSchema {
-  properties: Record<string, any>
+  properties: Record<string, JSONSchemaProperty>
   required: string[]
 }
 
@@ -711,7 +711,7 @@ interface JSONSchemaResult {
   description: string
   type: 'object'
   additionalProperties: boolean
-  properties: Record<string, any>
+  properties: Record<string, JSONSchemaProperty>
   required: string[]
 }
 
@@ -741,7 +741,7 @@ function inferJSONSchema(docs: any[]): JSONSchema {
   }
 
   const tree = buildSchemaTree(docs, docs.length)
-  const properties: Record<string, any> = {}
+  const properties: Record<string, JSONSchemaProperty> = {}
   const required: string[] = []
 
   if (!tree.children) {
@@ -759,7 +759,7 @@ function inferJSONSchema(docs: any[]): JSONSchema {
   })
 
   // Sort keys for consistent output
-  const sortedProperties: Record<string, any> = {}
+  const sortedProperties: Record<string, JSONSchemaProperty> = {}
   Object.keys(properties).sort().forEach(key => {
     sortedProperties[key] = properties[key]
   })
@@ -799,7 +799,7 @@ function schemaNodeToJSONSchema(node: SchemaNode, totalDocs: number, depth: numb
       }
 
       // Nested object - recurse
-      const properties: Record<string, any> = {}
+      const properties: Record<string, JSONSchemaProperty> = {}
       const required: string[] = []
 
       node.children.forEach((childNode, key) => {
@@ -810,7 +810,7 @@ function schemaNodeToJSONSchema(node: SchemaNode, totalDocs: number, depth: numb
       })
 
       // Sort keys
-      const sortedProperties: Record<string, any> = {}
+      const sortedProperties: Record<string, JSONSchemaProperty> = {}
       Object.keys(properties).sort().forEach(key => {
         sortedProperties[key] = properties[key]
       })
@@ -825,7 +825,7 @@ function schemaNodeToJSONSchema(node: SchemaNode, totalDocs: number, depth: numb
 
     if (type === 'array') {
       // Array type
-      const result: any = { type: 'array' }
+      const result: JSONSchemaProperty = { type: 'array' }
 
       if (node.arrayItemTypes && node.arrayItemTypes.size > 0) {
         const itemTypes = Array.from(node.arrayItemTypes)
@@ -1373,40 +1373,37 @@ function formatValueForCSV(value: any): string {
  *
  * Used by tests and external consumers. Returns full JSON Schema object.
  *
+ * Returns a **document schema** (type: 'object'), not a collection schema.
+ * This schema describes the structure of individual documents.
+ *
  * @param docs - Array of documents to analyze
  * @param onProgress - Progress callback (progress: number, message: string)
  * @param signal - AbortSignal for cancellation
- * @returns Full JSON Schema (draft 2020-12)
+ * @returns Full JSON Schema (draft 2020-12) describing document structure
  */
 export function inferSchema(
   docs: any[],
   onProgress: (progress: number, message: string) => void,
   signal: AbortSignal
-): any {
+): JSONSchemaResult {
   // Check abort
   if (signal?.aborted) {
     throw new DOMException('AbortError', 'AbortError')
   }
 
-  // Handle empty collection
-  if (!docs || docs.length === 0) {
-    return {
-      $schema: 'https://json-schema.org/draft/2020-12/schema',
-      additionalProperties: false,
-      type: 'array',
-      items: {}
-    }
-  }
-
   onProgress?.(0.1, 'Inferring schema from documents...')
 
-  // Use internal inference
+  // Use internal inference (works for empty or non-empty collections)
   const { properties, required } = inferJSONSchema(docs)
 
   onProgress?.(0.9, 'Finalizing schema...')
 
+  // Always return document schema (type: 'object'), even for empty collections
   return {
     $schema: 'https://json-schema.org/draft/2020-12/schema',
+    $id: 'https://example.com/document.schema.json',
+    title: 'Document',
+    description: `Auto-generated from ${docs.length} document(s)`,
     additionalProperties: false,
     type: 'object',
     properties,

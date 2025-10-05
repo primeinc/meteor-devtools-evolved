@@ -122,14 +122,18 @@ describe('inferSchema', () => {
   const signal = new AbortController().signal
 
   describe('empty collection', () => {
-    it('should return minimal schema for empty array', () => {
+    it('should return minimal document schema for empty array', () => {
       const schema = inferSchema([], noop, signal)
 
       expect(schema).toEqual({
         $schema: 'https://json-schema.org/draft/2020-12/schema',
+        $id: 'https://example.com/document.schema.json',
+        title: 'Document',
+        description: 'Auto-generated from 0 document(s)',
         additionalProperties: false,
-        type: 'array',
-        items: {},
+        type: 'object',
+        properties: {},
+        required: []
       })
     })
   })
@@ -179,10 +183,11 @@ describe('inferSchema', () => {
       const docs = [{ value: 'text' }, { value: 42 }, { value: true }]
       const schema = inferSchema(docs, noop, signal)
 
-      expect(schema.properties.value.anyOf).toHaveLength(3)
-      expect(schema.properties.value.anyOf).toContainEqual({ type: 'boolean' })
-      expect(schema.properties.value.anyOf).toContainEqual({ type: 'number' })
-      expect(schema.properties.value.anyOf).toContainEqual({ type: 'string' })
+      const valueProp = schema.properties.value as any
+      expect(valueProp.anyOf).toHaveLength(3)
+      expect(valueProp.anyOf).toContainEqual({ type: 'boolean' })
+      expect(valueProp.anyOf).toContainEqual({ type: 'number' })
+      expect(valueProp.anyOf).toContainEqual({ type: 'string' })
     })
 
     it('should collapse when more than 3 types', () => {
@@ -253,9 +258,10 @@ describe('inferSchema', () => {
       ]
       const schema = inferSchema(docs, noop, signal)
 
-      expect(schema.properties.user.properties).toHaveProperty('name')
-      expect(schema.properties.user.properties).toHaveProperty('age')
-      expect(schema.properties.user.required).toEqual([])
+      const userProp = schema.properties.user as any
+      expect(userProp.properties).toHaveProperty('name')
+      expect(userProp.properties).toHaveProperty('age')
+      expect(userProp.required).toEqual([])
     })
 
     it('should cap depth at 5 levels', () => {
@@ -275,7 +281,7 @@ describe('inferSchema', () => {
       const schema = inferSchema([deepDoc], noop, signal)
 
       // Navigate to l5
-      let current = schema.properties.l1
+      let current: any = schema.properties.l1
       for (let i = 2; i <= 5; i++) {
         expect(current).toHaveProperty('properties')
         current = current.properties[`l${i}`]
@@ -308,9 +314,10 @@ describe('inferSchema', () => {
       ]
       const schema = inferSchema(docs, noop, signal)
 
-      expect(schema.properties.items.type).toBe('array')
-      expect(schema.properties.items.items.anyOf).toHaveLength(1)
-      expect(schema.properties.items.items.anyOf[0]).toEqual({
+      const itemsProp = schema.properties.items as any
+      expect(itemsProp.type).toBe('array')
+      expect(itemsProp.items.anyOf).toHaveLength(1)
+      expect(itemsProp.items.anyOf[0]).toEqual({
         type: 'object',
         additionalProperties: false,
         properties: {
@@ -332,8 +339,9 @@ describe('inferSchema', () => {
       ]
       const schema = inferSchema(docs, noop, signal)
 
-      expect(schema.properties.items.type).toBe('array')
-      expect(schema.properties.items.items.anyOf).toHaveLength(2)
+      const itemsProp = schema.properties.items as any
+      expect(itemsProp.type).toBe('array')
+      expect(itemsProp.items.anyOf).toHaveLength(2)
     })
 
     it('should collapse array with more than 5 object shapes', () => {
@@ -365,9 +373,10 @@ describe('inferSchema', () => {
       const docs = [{ values: [1, 'two', 3] }]
       const schema = inferSchema(docs, noop, signal)
 
-      expect(schema.properties.values.type).toBe('array')
-      expect(schema.properties.values.items.anyOf).toContainEqual({ type: 'number' })
-      expect(schema.properties.values.items.anyOf).toContainEqual({ type: 'string' })
+      const valuesProp = schema.properties.values as any
+      expect(valuesProp.type).toBe('array')
+      expect(valuesProp.items.anyOf).toContainEqual({ type: 'number' })
+      expect(valuesProp.items.anyOf).toContainEqual({ type: 'string' })
     })
   })
 
@@ -431,10 +440,14 @@ describe('inferSchema', () => {
 
       expect(schema.$schema).toBe('https://json-schema.org/draft/2020-12/schema')
       expect(schema.type).toBe('object')
-      expect(schema.properties._id.type).toBe('string')
-      expect(schema.properties.user.type).toBe('object')
-      expect(schema.properties.tags.type).toBe('array')
-      expect(schema.properties.active.type).toBe('boolean')
+      const _idProp = schema.properties._id as any
+      const userProp = schema.properties.user as any
+      const tagsProp = schema.properties.tags as any
+      const activeProp = schema.properties.active as any
+      expect(_idProp.type).toBe('string')
+      expect(userProp.type).toBe('object')
+      expect(tagsProp.type).toBe('array')
+      expect(activeProp.type).toBe('boolean')
     })
   })
 })

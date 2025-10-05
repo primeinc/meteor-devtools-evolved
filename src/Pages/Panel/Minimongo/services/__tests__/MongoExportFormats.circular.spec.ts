@@ -15,7 +15,6 @@ describe('MongoExportFormats - Circular Reference Protection', () => {
     const result = MONGO_SHELL.formatter({
       collectionName: 'test',
       documents: [circular],
-      
     })
 
     // Should contain [Circular] placeholder instead of crashing
@@ -31,7 +30,6 @@ describe('MongoExportFormats - Circular Reference Protection', () => {
     const result = MONGO_SHELL.formatter({
       collectionName: 'test',
       documents: [obj1],
-      
     })
 
     expect(result).toContain('[Circular]')
@@ -40,7 +38,6 @@ describe('MongoExportFormats - Circular Reference Protection', () => {
       MONGO_SHELL.formatter({
         collectionName: 'test',
         documents: [obj1],
-        
       }),
     ).not.toThrow()
   })
@@ -52,7 +49,6 @@ describe('MongoExportFormats - Circular Reference Protection', () => {
     const result = MONGO_SHELL.formatter({
       collectionName: 'test',
       documents: [{ values: arr }],
-      
     })
 
     expect(result).toContain('[Circular]')
@@ -68,7 +64,6 @@ describe('MongoExportFormats - Circular Reference Protection', () => {
     const result = MONGO_SHELL.formatter({
       collectionName: 'test',
       documents: [doc1, doc2],
-      
     })
 
     // Each document should detect the circular reference independently

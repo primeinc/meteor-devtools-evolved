@@ -127,7 +127,7 @@ describe('inferSchema', () => {
 
       expect(schema).toEqual({
         $schema: 'https://json-schema.org/draft/2020-12/schema',
-        additionalProperties: true,
+        additionalProperties: false,
         type: 'array',
         items: {},
       })
@@ -237,7 +237,7 @@ describe('inferSchema', () => {
 
       expect(schema.properties.user).toEqual({
         type: 'object',
-        additionalProperties: true,
+        additionalProperties: false,
         properties: {
           name: { type: 'string' },
           age: { type: 'number' },
@@ -312,7 +312,7 @@ describe('inferSchema', () => {
       expect(schema.properties.items.items.anyOf).toHaveLength(1)
       expect(schema.properties.items.items.anyOf[0]).toEqual({
         type: 'object',
-        additionalProperties: true,
+        additionalProperties: false,
         properties: {
           id: { type: 'number' },
           name: { type: 'string' },

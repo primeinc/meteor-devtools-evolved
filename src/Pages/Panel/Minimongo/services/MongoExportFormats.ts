@@ -808,7 +808,7 @@ function schemaNodeToJSONSchema(node: SchemaNode, totalDocs: number, depth: numb
 
       return {
         type: 'object',
-        additionalProperties: true,
+        additionalProperties: false,
         properties: sortedProperties,
         required: required.sort()
       }
@@ -1351,7 +1351,7 @@ export function inferSchema(
   if (!docs || docs.length === 0) {
     return {
       $schema: 'https://json-schema.org/draft/2020-12/schema',
-      additionalProperties: true,
+      additionalProperties: false,
       type: 'array',
       items: {}
     }
@@ -1366,7 +1366,7 @@ export function inferSchema(
 
   return {
     $schema: 'https://json-schema.org/draft/2020-12/schema',
-    additionalProperties: true,
+    additionalProperties: false,
     type: 'object',
     properties,
     required

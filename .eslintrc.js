@@ -13,8 +13,9 @@ module.exports = merge(require('@tstt/eslint-config/index.js'), {
       },
     ],
     // JSDoc validation - using modern eslint-plugin-jsdoc
+    // These are ERRORS to enforce JSDoc requirements at pre-commit
     'jsdoc/require-jsdoc': [
-      'warn',
+      'error',
       {
         require: {
           FunctionDeclaration: true,
@@ -29,11 +30,11 @@ module.exports = merge(require('@tstt/eslint-config/index.js'), {
         ],
       },
     ],
-    'jsdoc/require-param-description': 'warn',
+    'jsdoc/require-param-description': 'error',
     'jsdoc/require-returns-description': 'off',
-    'jsdoc/check-param-names': 'warn',
-    'jsdoc/check-tag-names': 'warn',
-    'jsdoc/check-types': 'warn',
+    'jsdoc/check-param-names': 'error',
+    'jsdoc/check-tag-names': 'error',
+    'jsdoc/check-types': 'error',
   },
   globals: { Meteor: 'readonly', i18n: 'readonly' },
 })

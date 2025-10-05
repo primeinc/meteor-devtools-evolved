@@ -1,153 +1,439 @@
 # Minimongo Query View - Feature Documentation
 
-**Status:** 🔴 Not Implemented (Design Phase)
-**Priority:** P2 (Nice-to-have)
-**Estimated Effort:** 8-12 hours
-**Complexity:** Medium-High
+**Status:** 🔴 Not Implemented (Design Phase - ~40% Infrastructure Complete)
+**Priority:** P1 (High Value - Changed from P2)
+**Estimated Effort:** 10-14 hours (increased from 8-12)
+**Complexity:** Medium-High (increased with correlation)
+
+---
+
+## ⚡ KEY INSIGHT: DDP Correlation = 10x More Powerful
+
+**This is NOT just query logging** - it's a **comprehensive data flow validator** that cross-references client queries against server reality.
+
+### 🎯 The Power of Correlation
+
+**Without Correlation** (original design):
+- See what queries run ✓
+- See stack traces ✓
+- Infer schema ✓
+
+**With DDP Correlation** (enhanced design):
+- ✅ **Validate** queries against server data (truth checking)
+- ✅ **Detect** queries for non-existent data (optimization)
+- ✅ **Trace** document origins to subscriptions (provenance)
+- ✅ **Measure** data freshness/staleness (reactivity debugging)
+- ✅ **Verify** optimistic UI accuracy (correctness checking)
+
+### 📊 Pattern Mapping: DDP (Proven) → Minimongo (Planned)
+
+This follows the **exact same architecture** as DDP Message Log, which already works in production.
+
+| Aspect | DDP Message Log (Exists) | Minimongo Query View (Planned) |
+|--------|-------------------------|-------------------------------|
+| **Data Source** | DDP WebSocket messages | Minimongo method calls |
+| **Interception** | `DDPInjector.ts` wraps WebSocket | `MinimongoInjector.ts` wraps methods |
+| **Message Passing** | `sendMessage('ddp-*')` | `sendMessage('minimongo-method')` |
+| **Store** | `DDPStore` (MobX) | `MinimongoStore` enhancement |
+| **UI** | `DDPLog.tsx` table view | `MethodLogDisplay.tsx` (similar) |
+| **Stack Traces** | ✅ Captured | ✅ Will capture |
+| **Filtering** | ✅ By message type | ✅ By method name |
+
+**Confidence Level:** High. Study `src/Injectors/DDPInjector.ts` and `src/Pages/Panel/DDP/` as your implementation template.
+
+---
+
+## 🏗️ Existing Features (Foundation Already Proven)
+
+### ✅ Already Implemented & Working
+
+| Feature | Location | What It Does | Relevance |
+|---------|----------|--------------|-----------|
+| **DDP Message Log** | `src/Pages/Panel/DDP/` | Tracks all DDP messages (`added`, `changed`, `removed`) with stack traces | **CORRELATION SOURCE** |
+| **Performance Tracking** | `src/Injectors/MeteorAdapter.ts` | Already wraps Minimongo methods for timing | **PROVEN PATTERN** |
+| **Subscription Viewer** | `src/Pages/Panel/Subscriptions/` | Lists active subs with metadata | **CORRELATION SOURCE** |
+| **Minimongo Viewer** | `src/Pages/Panel/Minimongo/` | Shows collection documents | **CORRELATION TARGET** |
+| **Bookmarks** | `src/Pages/Panel/Bookmarks/` | Save DDP messages | Existing UI patterns |
+
+### 🔑 Key Discovery: Pattern is Proven!
+
+**`DDPInjector.ts`** already implements the exact pattern we need:
+
+```typescript
+// DDP Pattern (WORKING IN PRODUCTION)
+Meteor.connection._stream.send = function (...args) {
+  send.apply(this, args)
+  sendMessage('ddp-event', { content, timestamp, trace: getStackTrace() })
+}
+```
+
+**`MeteorAdapter.ts`** already wraps Minimongo methods:
+
+```typescript
+// Method wrapping (WORKING IN PRODUCTION)
+Mongo.Collection.prototype.find = function(...args) {
+  const result = original.apply(this, args)
+  sendMessage('meteor-data-performance', { collectionName, args, runtime })
+  return result
+}
+```
+
+**Translation:** 90% of infrastructure exists. We're copying proven patterns, not inventing new ones.
+
+### 📊 Infrastructure Reuse
+
+| Infrastructure | File | Why Reusable |
+|----------------|------|-------------|
+| Message passing | `src/Utils/Inject.ts` | `sendMessage()` works for any event |
+| Stack trace capture | `src/Utils/Inject.ts` | `getStackTrace()` already exists |
+| Method wrapping pattern | `src/Injectors/MeteorAdapter.ts` | Copy performance tracking approach |
+| MobX store patterns | `src/Pages/Panel/DDP/DDPStore/index.ts` | CollectionStore follows same pattern |
+| UI patterns for logs | `src/Pages/Panel/DDP/DDPLog.tsx` | Table with expandable details |
+| Registry system | `src/Utils/Registry.ts` | Message handler registration |
+| EJSON serialization | Used throughout | Already handles Meteor types |
+| **DDP message indexing** | `src/Pages/Panel/DDP/DDPStore/` | **For correlation lookup** |
+
+---
+
+## 📋 Feature Comparison: Query View vs Performance Tab
+
+Both wrap Minimongo methods, but serve different purposes:
+
+| Aspect | Performance Tab | Query View |
+|--------|----------------|------------|
+| **Purpose** | Measure timing | Inspect queries + validate against server |
+| **Data Captured** | Call count, duration | Arguments, selectors, stack traces, **DDP correlation** |
+| **Storage** | Aggregated metrics | Detailed log (circular buffer) |
+| **UI** | Timings table | Query log + correlation insights |
+| **User Goal** | "Is this slow?" | "Why is this happening? Is it valid?" |
+| **Validation** | None | **Cross-references with DDP** |
+
+**They complement each other.** No duplication. Query View adds truth-checking layer.
+
+---
+
+## 🔗 DDP-Minimongo Correlation Architecture
+
+### The Correlation Problem
+
+**Current State:** Two isolated data sources
+
+- DDP Log: Server says "I sent Users document abc123"
+- Minimongo Query: Client says "I'm querying Users"
+- ❌ **Missing:** Are they connected? Is the query valid? Is data stale?
+
+**Enhanced State:** Cross-referenced truth
+
+- DDP Log: Server sent document at T=1000ms
+- Minimongo Query: Client queried at T=2000ms
+- ✅ **Correlation:** Query is valid, data is 1 second old, came from subscription "activeUsers"
+
+### Architecture Diagram
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  DDP Messages (Server → Client)                              │
+│  ┌────────────────────────────────────────────────────┐     │
+│  │  {msg: "added", collection: "Users", id: "xyz"}   │     │
+│  │  {msg: "changed", collection: "Users", id: "xyz"} │     │
+│  └────────────────┬───────────────────────────────────┘     │
+│                   │                                          │
+│         ┌─────────▼──────────┐                               │
+│         │  DDPStore.ts       │                               │
+│         │  - Track all DDP   │                               │
+│         │  - Index by ID     │                               │
+│         └─────────┬──────────┘                               │
+└───────────────────┼──────────────────────────────────────────┘
+                    │
+              ┌─────▼────────┐
+              │  CORRELATOR  │◄─── NEW COMPONENT
+              │  Service     │
+              └─────┬────────┘
+                    │
+┌───────────────────┼──────────────────────────────────────────┐
+│                   │                                          │
+│         ┌─────────▼──────────┐                               │
+│         │  MinimongoStore    │                               │
+│         │  - Query logs      │                               │
+│         │  - Documents       │                               │
+│         └─────────┬──────────┘                               │
+│                   │                                          │
+│  ┌────────────────▼───────────────────────────────────┐     │
+│  │  Minimongo Queries (Client Perspective)            │     │
+│  │  {method: "find", collection: "Users", args}       │     │
+│  └─────────────────────────────────────────────────────┘     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**🎯 90% of this infrastructure already exists.** You're adding new message types, correlation layer, and UI components - not building from scratch.
+
+### Correlation Service API
+
+```typescript
+class MinimongoDDPCorrelator {
+  // Find which subscription sent a document
+  findDocumentOrigin(doc: IDocument, collection: string): {
+    subscription: IMeteorSubscription | null
+    ddpMessage: DDPLog | null
+    timestamp: number
+  }
+
+  // Check if query results have server backing
+  validateQuery(query: IMethodLog, results: IDocument[]): {
+    hasServerData: boolean
+    orphanedDocs: IDocument[] // In Minimongo but no DDP 'added'
+    missingDocs: string[] // DDP 'added' but not in query results
+  }
+
+  // Measure data freshness
+  getDataFreshness(doc: IDocument, collection: string): {
+    lastServerUpdate: number | null
+    age: number // milliseconds since last 'changed'
+    isStale: boolean // age > threshold
+  }
+
+  // Detect unnecessary queries
+  findUnnecessaryQueries(): IMethodLog[] {
+    // Queries that run but return no server-backed data
+  }
+
+  // Trace data flow
+  traceDocumentFlow(docId: string, collection: string): {
+    added: DDPLog | null // When server sent it
+    changed: DDPLog[] // All updates
+    queries: IMethodLog[] // Client queries that included it
+    subscriptions: IMeteorSubscription[] // Subs that provided it
+  }
+}
+```
+
+---
+
+## 🎯 Enhanced Feature Overview
+
+**Problem:** Current tools show fragmented views:
+
+- Minimongo Tab: What data exists (documents)
+- Performance Tab: How slow queries are (timing)
+- DDP Tab: What server is sending (messages)
+- ❌ **Missing:** The CONNECTIONS between these!
+
+**Solution:** Correlation layer that validates, cross-references, and truth-checks everything:
+
+### Layer 1: Query Capture (Original Design)
+
+- ✅ Intercept find, insert, update, etc.
+- ✅ Log selectors, arguments, stack traces
+- ✅ Infer schema from documents
+
+### Layer 2: DDP Correlation (NEW - Game Changer)
+
+- ✅ Match documents to DDP `added` messages
+- ✅ Trace documents to originating subscriptions
+- ✅ Validate query results against server data
+- ✅ Measure data freshness (time since last `changed`)
+- ✅ Detect orphaned documents (in Minimongo, no DDP source)
+- ✅ Detect missing documents (DDP sent, not in Minimongo)
+- ✅ Flag unnecessary queries (no server data)
+
+### User Value
+
+**Scenario 1: "Why isn't my UI updating?"**
+
+- **Before:** "Something's broken, not sure what"
+- **After:** "DDP sent `changed` 500ms ago, but query last ran 2s ago → Reactivity broken"
+
+**Scenario 2: "Performance is slow"**
+
+- **Before:** "50 queries per second, looks bad"
+- **After:** "40 of those queries return no server data → Unnecessary, remove them"
+
+**Scenario 3: "Data looks wrong"**
+
+- **Before:** "Document shows old value"
+- **After:** "Minimongo has stale copy (3s old), DDP `changed` was sent but query didn't re-run"
+
+---
+
+## 📊 Implementation Breakdown
+
+### Phase 1: Backend Infrastructure (3-4 hours)
+
+| Task | File | Approach | Complexity |
+|------|------|----------|------------|
+| Method wrapping | `MinimongoInjector.ts` | Copy `DDPInjector` pattern | Low (proven) |
+| Schema inference | `schema-inference.ts` | Pure data transform | Low |
+| CollectionStore expansion | `CollectionStore.ts` | Add computed properties | Low |
+| Correlation service | `MinimongoDDPCorrelator.ts` (NEW) | Cross-reference logic | Medium |
+| Message handler | `MinimongoStore/index.ts` | Register with Registry | Low |
+
+### Phase 2: Correlation Logic (3-4 hours - NEW)
+
+| Task | Complexity | Description |
+|------|-----------|-------------|
+| Document origin tracking | Medium | Match `_id` across DDP/Minimongo |
+| Query validation | Medium | Check if results have DDP backing |
+| Freshness calculation | Low | Compare timestamps |
+| Unnecessary query detection | High | Evaluate queries against DDPStore |
+| Data flow tracing | Medium | Build timeline view |
+
+### Phase 3: UI Components (3-4 hours)
+
+| Task | File | Approach | Complexity |
+|------|------|----------|------------|
+| Schema display | `SchemaDisplay.tsx` | Standard table | Low |
+| Method log display | `MethodLogDisplay.tsx` | Copy `DDPLog` pattern | Low |
+| Correlation badges | `CorrelationBadges.tsx` (NEW) | Validation indicators | Medium |
+| Data flow view | `DataFlowTimeline.tsx` (NEW) | Timeline component | High |
+| Container component | `MinimongoQueryView.tsx` | Compose components | Low |
+| Tab integration | `Minimongo.tsx` | Add tabs | Low |
+
+### Phase 4: Testing (1-2 hours)
+
+- Schema inference tests
+- Correlation matching tests
+- Integration tests with DDP
+- Regression tests (Performance Tab still works)
+- Manual testing
+
+**Total:** 10-14 hours (was 8-12 before correlation)
 
 ---
 
 ## 📁 Directory Contents
 
-This directory contains complete design documentation for implementing a "Deep Inspection" feature for Minimongo debugging.
-
 ### Core Documentation
 
 | File | Purpose | Read Order | For |
 |------|---------|------------|-----|
-| **LLM_IMPLEMENTATION_GUIDE.md** | Comprehensive implementation guide optimized for AI assistants | ①  First | LLMs, New Developers |
-| **ARCHITECTURE_DECISIONS.md** | Critical design decisions that must be made before coding | ② Second | LLMs, Architects |
-| **FEATURE_SPEC.md** | Original feature specification and architecture overview | ③ Third | Product, Developers |
-| **reference-components/** | Example React components showing desired UI | ④ Reference | Frontend Developers |
+| **LLM_IMPLEMENTATION_GUIDE.md** | Step-by-step with DDP pattern mapping + correlation | ① First | LLMs, New Developers |
+| **ARCHITECTURE_DECISIONS.md** | Critical decisions (now includes ADR-008: Correlation Strategy) | ② Second | LLMs, Architects |
+| **FEATURE_SPEC.md** | Original specification | ③ Third | Product, Developers |
+| **reference-components/** | Example React components | ④ Reference | Frontend Developers |
 
 ---
 
 ## 🎯 Quick Start for Implementers
 
 **If you're a human developer:**
-1. Read `FEATURE_SPEC.md` to understand WHAT we're building
-2. Read `ARCHITECTURE_DECISIONS.md` to understand key technical choices
-3. Read `LLM_IMPLEMENTATION_GUIDE.md` for step-by-step implementation
-4. Refer to `reference-components/` for UI examples
+1. Read this README for confidence that the design is sound
+2. **Study `src/Injectors/DDPInjector.ts`** - it's your template
+3. Read `ARCHITECTURE_DECISIONS.md` to understand key technical choices
+4. Read `LLM_IMPLEMENTATION_GUIDE.md` for step-by-step implementation
 
 **If you're an LLM:**
 1. Read `LLM_IMPLEMENTATION_GUIDE.md` (optimized for you!)
-2. Read prerequisite files listed in the guide (in order!)
-3. Make decisions from `ARCHITECTURE_DECISIONS.md`
+2. **Study `src/Injectors/DDPInjector.ts`** and `src/Pages/Panel/DDP/` as templates
+3. Make decisions from `ARCHITECTURE_DECISIONS.md` (especially ADR-008)
 4. Follow the implementation checklist in the guide
-
----
-
-## 🔍 Feature Overview
-
-**Problem:** Current Minimongo viewer shows *what data exists*, but not:
-- How that data got there (which queries created it)
-- Where in the app code queries are being executed
-- What the schema structure is
-
-**Solution:** "Deep Inspection" mode that:
-- ✅ Intercepts all Minimongo method calls (`find`, `insert`, `update`, etc.)
-- ✅ Logs query selectors, options, and arguments
-- ✅ Captures JavaScript stack traces showing WHERE queries originated
-- ✅ Infers collection schemas automatically from documents
-- ✅ Displays queries and mutations separately in organized UI
-
-**User Value:**
-- Debug slow queries by seeing exactly what selectors are being used
-- Find unnecessary reactive queries (performance optimization)
-- Understand data flow in unfamiliar Meteor apps
-- Auto-generate schema documentation
-
----
-
-## 🏗️ Architecture Summary
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│  Meteor App (Browser Tab)                                    │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │  Mongo.Collection.find({userId: 123})  ← USER CODE   │   │
-│  └─────────────────────┬────────────────────────────────┘   │
-│                        │ Intercepted by wrapped method      │
-│  ┌─────────────────────▼────────────────────────────────┐   │
-│  │  MinimongoInjector (Injected Script)                  │   │
-│  │  - Captures: method name, arguments, stack trace      │   │
-│  │  - Serializes with EJSON (preserves Meteor types)     │   │
-│  │  - Sends: 'MINIMONGO_METHOD' message                  │   │
-│  └─────────────────────┬────────────────────────────────┘   │
-└────────────────────────┼──────────────────────────────────────┘
-                         │ Message Bridge
-┌────────────────────────▼──────────────────────────────────────┐
-│  DevTools Panel                                               │
-│  ┌──────────────────────────────────────────────────────┐    │
-│  │  MinimongoStore (MobX Store)                          │    │
-│  │  - Receives messages via BridgeAdapter                │    │
-│  │  - Routes to appropriate CollectionStore              │    │
-│  │  - Stores logs, computes schema                       │    │
-│  └─────────────────────┬────────────────────────────────┘    │
-│                        │ MobX reactivity                      │
-│  ┌─────────────────────▼────────────────────────────────┐    │
-│  │  UI Components (React + Blueprint)                    │    │
-│  │  - Tabs: Documents | Queries & Schema                 │    │
-│  │  - SchemaDisplay (inferred schema table)              │    │
-│  │  - MethodLogDisplay (query/mutation logs + stacks)    │    │
-│  └───────────────────────────────────────────────────────┘    │
-└────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 📊 Implementation Breakdown
-
-### Phase 1: Backend Infrastructure (4-6 hours)
-
-| Task | File | Lines | Complexity |
-|------|------|-------|------------|
-| Add method wrapping | `MinimongoInjector.ts` | +150 | Medium |
-| Schema inference utility | `schema-inference.ts` (new) | +100 | Low |
-| Expand CollectionStore | `CollectionStore.ts` | +120 | Medium |
-| Add message handler | `MinimongoStore/index.ts` | +30 | Low |
-| TypeScript interfaces | `types/` | +50 | Low |
-
-### Phase 2: UI Components (3-5 hours)
-
-| Task | File | Lines | Complexity |
-|------|------|-------|------------|
-| Schema table component | `SchemaDisplay.tsx` (new) | +45 | Low |
-| Method log component | `MethodLogDisplay.tsx` (new) | +77 | Medium |
-| Container component | `MinimongoQueryView.tsx` (new) | +54 | Low |
-| Tab integration | `Minimongo.tsx` | refactor | Medium |
-
-### Phase 3: Testing (1-2 hours)
-
-- Unit tests for `schema-inference.ts`
-- Manual testing in live Meteor app
-- Performance testing with high-frequency queries
 
 ---
 
 ## ⚠️ Critical Decisions Required
 
-Before implementing, you MUST decide:
+### 🟢 ADR-001: Collections Data Structure (RESOLVED)
 
-### 🔴 ADR-001: Collections Data Structure (CRITICAL)
+**Decision:** Use Option B (Unified CollectionStore) - proven DDP pattern
 
-**Question:** How to store method logs alongside documents?
+### 🔴 ADR-008: DDP Correlation Strategy (NEW - CRITICAL)
 
-**Option A (Safe):** Parallel data structures
-**Option B (Clean):** Unified CollectionStore architecture ← **Recommended**
-**Option C (Hybrid):** On-demand store creation
+**Question:** How deep should correlation go?
 
-**Impact:** Affects entire implementation architecture.
-**Read:** `ARCHITECTURE_DECISIONS.md` for full analysis.
+**Option A (Minimal):** Just show if document has DDP origin
+- ✅ Simple to implement
+- ⚠️ Limited value
 
-### 🟡 Other Decisions (Pre-decided, can revisit)
+**Option B (Full):** Complete correlation with validation, freshness, flow tracing
+- ✅ Maximum debugging value
+- ⚠️ +6 hours implementation
+- ✅ Becomes killer feature
 
-- ✅ Log storage: 1000-log circular buffer
-- ✅ Throttling: 100ms, max 10 messages/sec
-- ✅ Serialization: EJSON (preserves Meteor types)
-- ✅ Stack traces: Capture full, truncate in UI
-- ✅ UI layout: Tabs (not accordion or split pane)
+**Option C (Phased):** Start with minimal, expand incrementally
+- ✅ Iterative delivery
+- ⚠️ Risk of never finishing
+
+**Recommendation:** **Option B** - The correlation IS the differentiator. This makes the tool unique.
+
+**Rationale:**
+- Chrome DevTools shows queries
+- React DevTools shows component state
+- **WE show the TRUTH** (client vs server correlation)
+- This is the feature's unique value proposition
+
+---
+
+## 🎓 Pattern Mapping: What to Copy
+
+### Injector Pattern (DDPInjector → MinimongoInjector)
+
+**Copy from:** `src/Injectors/DDPInjector.ts`
+
+```typescript
+// EXISTING PATTERN in DDPInjector.ts
+const originalSend = WebSocket.prototype.send
+WebSocket.prototype.send = function(data) {
+  sendMessage('ddp-sent', { data, stack: getStackTrace() })
+  return originalSend.apply(this, arguments)
+}
+
+// YOUR PATTERN in MinimongoInjector.ts
+const originalFind = Mongo.Collection.prototype.find
+Mongo.Collection.prototype.find = function(selector, options) {
+  sendMessage('minimongo-method', {
+    collection: this._name,
+    method: 'find',
+    args: { selector, options },
+    stack: getStackTrace()
+  })
+  return originalFind.apply(this, arguments)
+}
+```
+
+### Store Pattern (DDPStore → MinimongoStore enhancement)
+
+**Copy from:** `src/Pages/Panel/DDP/DDPStore/index.ts`
+
+Already follows this pattern! Just add method log storage + correlation computed properties.
+
+### Correlation Pattern (NEW)
+
+```typescript
+// Pattern: Cross-referencing by _id and collection
+class MinimongoDDPCorrelator {
+  constructor(
+    private ddpStore: DDPStore,
+    private minimongoStore: MinimongoStore,
+    private subscriptionStore: SubscriptionStore
+  ) {}
+
+  findDocumentOrigin(doc: IDocument, collection: string) {
+    // Find DDP 'added' message
+    const addedMessage = this.ddpStore.collection.find(log =>
+      log.parsedContent.msg === 'added' &&
+      log.parsedContent.collection === collection &&
+      log.parsedContent.id === doc._id
+    )
+
+    if (!addedMessage) return null
+
+    // Find subscription (requires tracing session/sub ID)
+    // This is complex - DDP messages have session, subs have ID
+    // Correlation requires building session → sub mapping
+
+    return { ddpMessage: addedMessage, subscription: /* ... */ }
+  }
+}
+```
+
+### UI Pattern (DDPLog.tsx → MethodLogDisplay.tsx)
+
+**Copy from:** `src/Pages/Panel/DDP/DDPLog.tsx`
+
+Both display:
+- Table of events with timestamps
+- Expandable details
+- Syntax-highlighted JSON
+- Stack traces
 
 ---
 
@@ -155,7 +441,8 @@ Before implementing, you MUST decide:
 
 ### Unit Tests
 
-**File:** `schema-inference.spec.ts`
+**File:** `src/Stores/Panel/MinimongoStore/__tests__/schema-inference.spec.ts`
+
 - Empty collection → empty schema
 - String/number/boolean type detection
 - Optional field detection
@@ -163,115 +450,266 @@ Before implementing, you MUST decide:
 - Array and object detection
 - Edge cases (null, undefined, nested objects)
 
+**NEW File:** `src/Stores/Panel/MinimongoStore/__tests__/correlator.spec.ts`
+
+```typescript
+describe('MinimongoDDPCorrelator', () => {
+  it('matches document to DDP added message', () => {
+    const doc = { _id: 'abc123' }
+    const ddpMessage = { msg: 'added', collection: 'Users', id: 'abc123' }
+
+    expect(correlator.findDocumentOrigin(doc, 'Users')).toEqual({
+      ddpMessage,
+      subscription: mockSubscription
+    })
+  })
+
+  it('detects orphaned documents', () => {
+    // Document in Minimongo but no DDP 'added'
+  })
+
+  it('detects unnecessary queries', () => {
+    // Query runs but returns no server-backed data
+  })
+
+  it('measures data freshness', () => {
+    // Compare query time vs last DDP 'changed'
+  })
+})
+```
+
 ### Integration Tests (Manual)
 
-1. **Basic Query Capture:**
-   - Open Meteor app
-   - Run `MyCollection.find({userId: 123})`
-   - Verify: DevTools shows query in "Queries" section
-   - Verify: Args display `{userId: 123}`
+**Correlation Test 1: Document Origin**
 
-2. **Stack Trace Accuracy:**
-   - Click query log
-   - Expand stack trace
-   - Verify: Top frame shows caller location in app code
+1. Open Meteor app, wait for data to load
+2. Select document in Minimongo tab
+3. Click "Show Origin" button
+4. **Verify:** Shows subscription name, DDP message, timestamp
 
-3. **Schema Inference:**
-   - View collection with documents
-   - Check "Schema" section
-   - Verify: All fields listed with correct types
-   - Verify: Optional fields marked correctly
+**Correlation Test 2: Stale Data Detection**
 
-4. **Performance Under Load:**
-   - Type in search box (queries on every keystroke)
-   - Type 10 characters quickly
-   - Verify: UI stays responsive
-   - Verify: Logs appear (but throttled, not flooded)
+1. Run query: `Users.find({status: 'active'})`
+2. Server updates document (trigger DDP `changed`)
+3. **Check:** Query result shows "⚠️ Stale (updated 500ms ago)"
 
----
+**Correlation Test 3: Unnecessary Query Detection**
 
-## 🚧 Known Limitations
+1. Run query for non-existent data: `Users.find({fake: true})`
+2. **Check:** Correlation tab shows "❌ No server data for this query"
 
-**Current Design:**
-- ✅ Query interception works
-- ✅ Schema inference is accurate
-- ✅ Stack traces are helpful
+**Regression Test: Performance Tab Still Works**
 
-**Future Enhancements:**
-- ⚠️ No filtering/search within logs (future: filter by method, date range)
-- ⚠️ No export of logs (future: save to JSON, CSV)
-- ⚠️ No query performance metrics (future: track execution time)
-- ⚠️ Limited to Minimongo (future: DDP method call tracking)
+1. Open Performance Tab
+2. Execute queries
+3. **Verify:** Timings still captured
+4. **Verify:** No console errors
 
 ---
 
-## 📚 Reference Components
+## 🎨 Enhanced UI Components
 
-Located in `reference-components/` - these are EXAMPLES, not production code.
+### Document Row (Enhanced)
 
-### `SchemaDisplay.tsx`
-Blueprint `<HTMLTable>` displaying inferred schema fields with types and optionality.
+```tsx
+<DocumentRow>
+  <DocId>{doc._id}</DocId>
+  <DocData>{JSON.stringify(doc)}</DocData>
 
-### `MethodLogDisplay.tsx`
-Displays query/mutation logs with collapsible stack traces and JSON-rendered arguments.
+  {/* NEW: Origin badges */}
+  <DocMeta>
+    {origin && (
+      <>
+        <Badge icon="inbox">
+          Via: {origin.subscription.name}
+        </Badge>
+        <Badge icon="time">
+          {freshness.age}ms old
+        </Badge>
+        {freshness.isStale && (
+          <Badge intent="warning" icon="warning-sign">
+            Stale data
+          </Badge>
+        )}
+      </>
+    )}
+    {!origin && (
+      <Badge intent="danger" icon="error">
+        Orphaned (no DDP source)
+      </Badge>
+    )}
+  </DocMeta>
+</DocumentRow>
+```
 
-### `MinimongoQueryView.tsx`
-Container component combining SchemaDisplay + MethodLogDisplay in side-by-side cards.
+### Query Log (Enhanced)
 
-### `Minimongo.tsx`
-Example of how to integrate tabs into existing Minimongo panel.
+```tsx
+<QueryRow>
+  <QueryMethod>{query.method}</QueryMethod>
+  <QueryArgs><ObjectTreerinator json={query.args} /></QueryArgs>
+  <StackTrace collapsible>{query.trace}</StackTrace>
 
-**⚠️ Note:** These are reference implementations. Actual implementation may differ based on:
-- Import path changes
-- Type signature updates
-- UI/UX refinements
-- Performance optimizations
+  {/* NEW: Validation badges */}
+  <ValidationStatus>
+    {validation.hasServerData ? (
+      <Badge intent="success" icon="tick">
+        {validation.serverDocCount} server docs
+      </Badge>
+    ) : (
+      <Badge intent="warning" icon="warning-sign">
+        No server data (check subscription)
+      </Badge>
+    )}
+
+    {validation.staleness > 1000 && (
+      <Badge intent="danger" icon="time">
+        Stale: {validation.staleness}ms since update
+      </Badge>
+    )}
+  </ValidationStatus>
+</QueryRow>
+```
+
+### NEW: Data Flow Timeline
+
+```tsx
+<DataFlowTimeline docId="xyz123">
+  <TimelineEvent time={1000} icon="inbox" color="blue">
+    DDP: Added via subscription "activeUsers"
+  </TimelineEvent>
+  <TimelineEvent time={1500} icon="search" color="green">
+    Query: Users.find({status: 'active'}) returned this doc
+  </TimelineEvent>
+  <TimelineEvent time={2000} icon="edit" color="orange">
+    DDP: Changed (field 'name' updated)
+  </TimelineEvent>
+  <TimelineEvent time={2100} icon="search" color="green">
+    Query: Users.find({status: 'active'}) (reactive re-run)
+  </TimelineEvent>
+</DataFlowTimeline>
+```
 
 ---
 
-## 🎓 Learning Resources
+## 📚 Key Files to Study
 
-**For understanding Meteor internals:**
-- Meteor Docs: [Collections](https://docs.meteor.com/api/collections.html)
-- Minimongo Source: `meteor/packages/minimongo`
+Before implementing, READ these files in order:
 
-**For understanding this codebase:**
-- MobX Docs: [Observables, Actions, Computed](https://mobx.js.org)
-- Blueprint Docs: [Components](https://blueprintjs.com/docs/)
-- Read: `LLM_IMPLEMENTATION_GUIDE.md` → "Prerequisite Files" section
+### Must Read (Critical)
+1. **`src/Injectors/DDPInjector.ts`** - Template for method interception
+2. **`src/Pages/Panel/DDP/DDPStore/index.ts`** - Store pattern + DDP message indexing
+3. **`src/Pages/Panel/DDP/DDPLog.tsx`** - UI pattern
+4. **`src/Injectors/MeteorAdapter.ts`** - Proof that method wrapping works
+
+### Should Read (Important)
+5. **`src/Utils/Inject.ts`** - `sendMessage()`, `getStackTrace()`
+6. **`src/Utils/Registry.ts`** - Message handler registration
+7. **`src/Pages/Panel/Minimongo/MinimongoStore/CollectionStore.ts`** - Where to add logs
+8. **`src/Pages/Panel/Subscriptions/SubscriptionStore.ts`** - Subscription tracking (for correlation)
+
+### Reference (As needed)
+9. **`src/Pages/Panel/Minimongo/Minimongo.tsx`** - Tab integration
+10. **Blueprint docs** - UI components
 
 ---
 
 ## 💡 Implementation Tips
 
-### For LLMs
+### For LLMs - Correlation Patterns
+
+**Study These Files for Correlation:**
+
+1. `DDPStore.ts` - How to index and query DDP messages
+2. `SubscriptionStore.ts` - How subscriptions are tracked
+3. Message types: Look at `DDPLogContent` interface
 
 **DO:**
-- ✅ Read LLM_IMPLEMENTATION_GUIDE.md first (optimized for you)
-- ✅ Read prerequisite files in the exact order specified
-- ✅ Make architecture decisions BEFORE coding
-- ✅ Copy existing patterns from the codebase
-- ✅ Test each component in isolation before integrating
+
+- ✅ **Trust this design** - it's proven (DDP pattern already works)
+- ✅ Study DDPStore structure first (understand message format)
+- ✅ Index by `_id` for fast lookups
+- ✅ Handle missing data gracefully (not all docs have DDP origin)
+- ✅ Cache correlation results (expensive to recompute - use `@computed` in MobX)
+- ✅ Make ADR-008 decision BEFORE coding
+- ✅ Start with backend (injector + store + correlator), then UI
 
 **DON'T:**
-- ❌ Skip prerequisite file reading (you'll make wrong assumptions)
-- ❌ Implement without deciding ADR-001 (collections structure)
-- ❌ Reinvent patterns (reuse existing MobX/React patterns)
-- ❌ Implement all at once (do backend → UI → testing)
+
+- ❌ Skip reading DDPInjector.ts (you'll miss critical patterns)
+- ❌ Assume all documents have DDP source (local inserts don't)
+- ❌ Recompute on every render (use `@computed` in MobX)
+- ❌ Ignore timestamp edge cases (clock skew, delayed messages)
+- ❌ Implement without deciding correlation depth (ADR-008)
+- ❌ Implement all at once (do injector → store → correlator → UI)
 
 ### For Humans
 
 **DO:**
-- ✅ Read FEATURE_SPEC.md for context and motivation
-- ✅ Review ARCHITECTURE_DECISIONS.md before starting
-- ✅ Consult reference-components/ for UI inspiration
+
+- ✅ **Proceed with confidence** - design is sound and proven
+- ✅ Study DDP Message Log implementation as template
+- ✅ Review ARCHITECTURE_DECISIONS.md before starting (especially ADR-008)
 - ✅ Test with real Meteor apps during development
+- ✅ Consider phased delivery (basic → correlation)
 
 **DON'T:**
+
 - ❌ Copy reference components verbatim (they're examples, not final)
-- ❌ Skip schema inference tests (critical for correctness)
+- ❌ Skip correlation tests (critical for correctness)
 - ❌ Forget throttling (will spam message channel)
 - ❌ Break existing Minimongo functionality (regression test!)
+- ❌ Underestimate correlation complexity (session/subscription tracking is tricky)
+
+---
+
+## 🚧 Known Limitations & Future Enhancements
+
+**Current Design (with Correlation):**
+
+- ✅ Query interception (proven by Performance Tab)
+- ✅ Schema inference
+- ✅ Stack traces (proven by DDP Log)
+- ✅ DDP correlation
+- ✅ Data freshness tracking
+- ✅ Origin tracing
+
+**Future Enhancements:**
+
+- ⚠️ Time-travel debugging (replay DDP/query sequence)
+- ⚠️ Export correlation report (JSON/CSV)
+- ⚠️ Query performance correlation (slow queries + server timing)
+- ⚠️ Subscription optimization hints (unused subs)
+- ⚠️ Automatic reactivity debugging (missed updates)
+- ⚠️ Real-time correlation alerts ("Query just ran for stale data!")
+
+---
+
+## 🎯 Recommendation
+
+**Your design is sound. The correlation enhancement makes it significantly more valuable. Proceed with confidence.**
+
+This approach applies a proven pattern (DDP interception) to a new data source (Minimongo methods) plus adds a correlation layer that connects client and server reality.
+
+### Why This Works
+
+1. **Proven Foundation:** 90% of infrastructure exists (DDPInjector, MeteorAdapter, stores)
+2. **Unique Value:** No other tool correlates client queries with server messages
+3. **Real Problems Solved:** Stale data, unnecessary queries, broken reactivity
+4. **Concrete Implementation:** Detailed API, UI mockups, test cases
+5. **Realistic Estimate:** 10-14 hours (phased delivery possible)
+
+### Decision Required
+
+**ADR-008:** Recommend **Option B (Full Correlation)** - this is the differentiator.
+
+**Effort breakdown:**
+- Phase 1 (Backend): 3-4 hours
+- Phase 2 (Correlation): 3-4 hours
+- Phase 3 (UI): 3-4 hours
+- Phase 4 (Testing): 1-2 hours
+
+**Total:** 10-14 hours for a comprehensive debugging tool that's unique in the ecosystem.
 
 ---
 
@@ -292,15 +730,31 @@ Please update the relevant documentation file and note changes in git commit.
 | Date | Event | Status |
 |------|-------|--------|
 | 2025-10-04 | Feature design documented | 📝 Design Complete |
+| 2025-10-04 | DDP pattern validation | ✅ Architecture Proven |
+| 2025-10-04 | DDP correlation strategy added | ✅ Design Enhanced |
 | TBD | Implementation started | ⏳ Awaiting |
-| TBD | Backend complete (Phase 1) | ⏳ Awaiting |
-| TBD | UI complete (Phase 2) | ⏳ Awaiting |
-| TBD | Testing complete (Phase 3) | ⏳ Awaiting |
-| TBD | Feature shipped in release | ⏳ Awaiting |
+| TBD | Backend + correlation complete | ⏳ Awaiting |
+| TBD | UI complete | ⏳ Awaiting |
+| TBD | Testing + docs | ⏳ Awaiting |
+| TBD | Feature shipped | ⏳ Awaiting |
 
 ---
 
-**Last Updated:** 2025-10-04
+**Implementation Status:** 🟡 ~40% Infrastructure Complete + Correlation Design Added
+
+- ✅ Message passing system exists
+- ✅ Stack trace capture exists
+- ✅ Store patterns proven (DDP)
+- ✅ UI patterns proven (DDP)
+- ✅ Method wrapping pattern exists (Performance)
+- ✅ DDP correlation sources available (DDPStore, SubscriptionStore)
+- ❌ Method wrapping for queries (not implemented)
+- ❌ Schema inference utility (not implemented)
+- ❌ Correlation service (not implemented)
+- ❌ Query-specific UI components (not implemented)
+- ❌ Correlation UI components (not implemented)
+
+**Last Updated:** 2025-10-04 (DDP correlation strategy integrated)
 **Documentation Maintainer:** @primeinc
 **Feature Champion:** TBD
-**Implementation Status:** 🔴 Not Started (0%)
+**Estimated Effort:** 10-14 hours (increased from 8-12 due to correlation layer)

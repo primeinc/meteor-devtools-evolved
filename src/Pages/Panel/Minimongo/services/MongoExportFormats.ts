@@ -16,9 +16,18 @@
  * - Type-safe schema generation
  */
 
-// NOTE: Must use default import for EJSON, not named import
-// Named import { EJSON } from 'ejson' results in undefined at runtime
-// This is because ejson package exports EJSON as the default export
+/**
+ * NOTE: Must use default import for EJSON, not named import.
+ *
+ * @example
+ * // ✅ Correct:
+ * import EJSON from 'ejson'
+ *
+ * // ❌ Incorrect (results in undefined at runtime):
+ * import { EJSON } from 'ejson'
+ *
+ * The ejson package uses CommonJS module.exports, requiring default import.
+ */
 import EJSON from 'ejson'
 import { safeCollectionAccessor, escapeMongoShellString } from './CollectionNameSanitizer'
 
@@ -922,7 +931,7 @@ function detectJSONSchemaType(value: any): string {
 // MongoDB Shell Literal Conversion
 // ============================================================================
 
-function convertToMongoShellLiteral(value: any, indent: number, seen: Set<any> = new Set()): string {
+function convertToMongoShellLiteral(value: any, indent: number, seen: WeakSet<object> = new WeakSet()): string {
   const spaces = '  '.repeat(indent)
 
   if (value === null || value === undefined) {

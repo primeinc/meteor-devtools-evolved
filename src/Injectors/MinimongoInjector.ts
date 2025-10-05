@@ -69,9 +69,9 @@ const cleanup = (object: any) => {
         return
       }
 
-      // EJSON preserves Dates as {$date: ...}, so this check is for non-EJSON Dates
+      // cloneDeepWithEJSON returns native Date instances (from EJSON.parse)
+      // Convert these back to EJSON wire format {$date: timestamp} for DevTools protocol
       if (clonedObject[key] instanceof Date) {
-        // Convert to EJSON format
         clonedObject[key] = { $date: clonedObject[key].getTime() }
         return
       }

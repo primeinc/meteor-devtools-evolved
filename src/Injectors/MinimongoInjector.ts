@@ -18,9 +18,15 @@ function cloneDeepWithEJSON(obj: any) {
   const EJSON = (window as any).EJSON || (window as any).Package?.ejson?.EJSON
 
   if (EJSON) {
-    // Serialize with EJSON, then deserialize back to get cloned object with EJSON types
-    const serialized = EJSON.stringify(obj)
-    return EJSON.parse(serialized)
+    try {
+      // Serialize with EJSON, then deserialize back to get cloned object with EJSON types
+      const serialized = EJSON.stringify(obj)
+      return EJSON.parse(serialized)
+    } catch (e) {
+      // Handle circular references or other EJSON serialization errors
+      warning('EJSON.stringify failed (circular reference?): ' + (e as Error).message + '. Falling back to JSON.')
+      // Fall through to JSON fallback below
+    }
   }
 
   // Fallback to regular JSON (will lose Date objects)

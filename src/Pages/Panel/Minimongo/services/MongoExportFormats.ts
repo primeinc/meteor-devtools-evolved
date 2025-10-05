@@ -16,6 +16,9 @@
  * - Type-safe schema generation
  */
 
+// NOTE: Must use default import for EJSON, not named import
+// Named import { EJSON } from 'ejson' results in undefined at runtime
+// This is because ejson package exports EJSON as the default export
 import EJSON from 'ejson'
 import { safeCollectionAccessor, escapeMongoShellString } from './CollectionNameSanitizer'
 
@@ -630,7 +633,8 @@ function schemaNodeToMongoose(node: SchemaNode, totalDocs: number): MongooseProp
         }
 
         // Single shape - generate nested schema
-        const shapeProp = schemaNodeToMongoose(shapes[0].schema, node.arrayItemCount || 0)
+        // Use shapeInfo.count (documents with this shape) not arrayItemCount (total items)
+        const shapeProp = schemaNodeToMongoose(shapes[0].schema, shapes[0].count || 0)
         return { type: `[${shapeProp.type}]` }
       }
 
@@ -703,6 +707,21 @@ interface JSONSchemaResult {
 }
 
 /**
+ * JSON Schema property value
+ *
+ * Can be:
+ * - Empty object {} (collapsed/too complex)
+ * - Primitive type { type: string } (includes 'null', 'string', 'number', 'boolean', 'integer', etc.)
+ * - Object type { type: 'object', additionalProperties: boolean, properties: {...}, required: [...] }
+ * - Array type { type: 'array', items?: {...} }
+ * - Union type { anyOf: [...] }
+ */
+type JSONSchemaProperty =
+  | Record<string, never>  // Empty object for collapsed schemas
+  | { type: string; additionalProperties?: boolean; properties?: Record<string, JSONSchemaProperty>; required?: string[]; items?: { type: string } | { anyOf: JSONSchemaProperty[] } }
+  | { anyOf: JSONSchemaProperty[] }
+
+/**
  * Infer JSON Schema from documents using hierarchical schema tree
  *
  * Uses buildSchemaTree() for proper nested object handling
@@ -746,7 +765,7 @@ function inferJSONSchema(docs: any[]): JSONSchema {
  * Convert SchemaNode to JSON Schema format with depth limiting
  * @param depth - Current nesting depth (used to cap at 5 levels)
  */
-function schemaNodeToJSONSchema(node: SchemaNode, totalDocs: number, depth: number = 1): any {
+function schemaNodeToJSONSchema(node: SchemaNode, totalDocs: number, depth: number = 1): JSONSchemaProperty {
   const allTypes = Array.from(node.types)
   const types = allTypes.filter(t => t !== 'null')
 
@@ -816,9 +835,9 @@ function schemaNodeToJSONSchema(node: SchemaNode, totalDocs: number, depth: numb
             return result // Just {type: 'array'} without items
           }
 
-          // Convert each shape to JSON Schema, using arrayItemCount for required fields
+          // Convert each shape to JSON Schema, using shapeInfo.count (not arrayItemCount)
           const shapeSchemas = shapes.map(shapeInfo => {
-            const schema = schemaNodeToJSONSchema(shapeInfo.schema, node.arrayItemCount || 0, depth + 1)
+            const schema = schemaNodeToJSONSchema(shapeInfo.schema, shapeInfo.count || 0, depth + 1)
 
             // If collapsed (empty object), skip
             if (Object.keys(schema).length === 0) {
@@ -891,7 +910,7 @@ function detectJSONSchemaType(value: any): string {
 // MongoDB Shell Literal Conversion
 // ============================================================================
 
-function convertToMongoShellLiteral(value: any, indent: number): string {
+function convertToMongoShellLiteral(value: any, indent: number, seen: Set<any> = new Set()): string {
   const spaces = '  '.repeat(indent)
 
   if (value === null || value === undefined) {
@@ -927,13 +946,21 @@ function convertToMongoShellLiteral(value: any, indent: number): string {
     return String(value)
   }
 
+  // Circular reference detection for objects and arrays
+  if (typeof value === 'object') {
+    if (seen.has(value)) {
+      return '"[Circular]"'
+    }
+    seen.add(value)
+  }
+
   // Arrays
   if (Array.isArray(value)) {
     if (value.length === 0) return '[]'
 
     let result = '[\n'
     value.forEach((item, i) => {
-      result += spaces + '  ' + convertToMongoShellLiteral(item, indent + 1)
+      result += spaces + '  ' + convertToMongoShellLiteral(item, indent + 1, seen)
       if (i < value.length - 1) result += ','
       result += '\n'
     })
@@ -949,7 +976,7 @@ function convertToMongoShellLiteral(value: any, indent: number): string {
 
     let result = '{\n'
     entries.forEach(([key, val], i) => {
-      result += spaces + '  ' + `"${key}": ` + convertToMongoShellLiteral(val, indent + 1)
+      result += spaces + '  ' + `${key}: ` + convertToMongoShellLiteral(val, indent + 1, seen)
       if (i < entries.length - 1) result += ','
       result += '\n'
     })
@@ -1131,7 +1158,8 @@ function analyzeObject(
           shapeInfo.count++
 
           // Analyze this object's structure
-          analyzeObject(item, shapeInfo.schema.children!, value.length)
+          // Use shapeInfo.count (documents with this shape) not value.length (array size)
+          analyzeObject(item, shapeInfo.schema.children!, shapeInfo.count)
         }
       })
 

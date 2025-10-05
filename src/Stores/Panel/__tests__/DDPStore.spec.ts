@@ -21,7 +21,7 @@ jest.mock('@/Stores/PanelStore', () => ({
 }))
 
 jest.mock('@/Utils/MessageFormatter', () => ({
-  generatePreview: jest.fn((content) => `preview: ${content}`),
+  generatePreview: jest.fn(content => `preview: ${content}`),
 }))
 
 describe('DDPStore', () => {

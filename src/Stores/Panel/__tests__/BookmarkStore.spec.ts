@@ -374,9 +374,8 @@ describe('BookmarkStore', () => {
     })
 
     it('should handle sync with database errors', async () => {
-      ;(PanelDatabase.getAll as jest.Mock).mockRejectedValue(
-        new Error('Database error'),
-      )
+      const mockError = new Error('Database error')
+      ;(PanelDatabase.getAll as jest.Mock).mockRejectedValue(mockError)
 
       // Should not throw
       await expect(store.sync()).rejects.toThrow('Database error')

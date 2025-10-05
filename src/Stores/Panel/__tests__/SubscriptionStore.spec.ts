@@ -11,7 +11,7 @@ import { PanelStore } from '@/Stores/PanelStore'
 jest.mock('@/Stores/PanelStore', () => ({
   PanelStore: {
     ddpStore: {
-      getSubscriptionMeta: jest.fn((sub) => ({
+      getSubscriptionMeta: jest.fn(sub => ({
         meta: {
           init: { timestamp: 1000 },
           ready: { timestamp: 1500 },
@@ -116,9 +116,7 @@ describe('SubscriptionStore', () => {
     })
 
     it('should reactively update when collection changes', () => {
-      store.collection = [
-        { id: 'sub1', name: 'users', params: [] } as any,
-      ]
+      store.collection = [{ id: 'sub1', name: 'users', params: [] } as any]
 
       let subsWithMeta = store.subsWithMeta
       expect(subsWithMeta).toHaveLength(1)

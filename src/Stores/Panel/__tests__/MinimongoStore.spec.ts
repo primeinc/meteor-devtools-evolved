@@ -230,9 +230,7 @@ describe('MinimongoStore', () => {
       store.computeCollectionSizes()
 
       expect(store.collectionMetadata.users.collectionSizePretty).toBeDefined()
-      expect(
-        store.collectionMetadata.users.collectionSizePretty,
-      ).toContain('B')
+      expect(store.collectionMetadata.users.collectionSizePretty).toContain('B')
     })
   })
 

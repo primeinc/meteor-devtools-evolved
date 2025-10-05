@@ -223,7 +223,10 @@ describe('SettingStore', () => {
 
   describe('persistence', () => {
     it('should load settings on construction', async () => {
-      const { PanelDatabase } = require('@/Database/PanelDatabase')
+      // PanelDatabase is already mocked at the top of the file
+      const { PanelDatabase } =
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        require('@/Database/PanelDatabase')
 
       await new Promise(resolve => setTimeout(resolve, 100))
 

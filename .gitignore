@@ -13,8 +13,5 @@ yarn-error.log
 
 # Local development files
 .claude/settings.local.json
-active_comments.json
-pr_comments.json
-repomix-output.xml
-REMAINING_ISSUES.md
-docs/MinimongoQueryView/
+.claude/snapshots/
+.claude/archive/

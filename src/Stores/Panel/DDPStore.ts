@@ -1,34 +1,9 @@
 import debounce from 'lodash.debounce'
 import { action, computed, makeObservable, observable, runInAction } from 'mobx'
-import EventEmitter from 'eventemitter3'
-import { Searchable } from '../Common/Searchable'
+import { SearchableEventEmitter } from '../Common/SearchableEventEmitter'
 import { PanelStore } from '@/Stores/PanelStore'
 import { generatePreview } from '@/Utils/MessageFormatter'
 import { clearCache } from '@/Bridge'
-
-class SearchableEventEmitter<T> extends Searchable<T> {
-  private emitter = new EventEmitter()
-
-  emit(event: string, ...args: any[]) {
-    return this.emitter.emit(event, ...args)
-  }
-
-  on(event: string, fn: (...args: any[]) => void) {
-    return this.emitter.on(event, fn)
-  }
-
-  off(event: string, fn: (...args: any[]) => void) {
-    return this.emitter.off(event, fn)
-  }
-
-  once(event: string, fn: (...args: any[]) => void) {
-    return this.emitter.once(event, fn)
-  }
-
-  removeAllListeners(event?: string) {
-    return this.emitter.removeAllListeners(event)
-  }
-}
 
 export class DDPStore extends SearchableEventEmitter<DDPLog> {
   @observable inboundBytes = 0

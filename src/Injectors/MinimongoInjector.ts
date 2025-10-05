@@ -24,25 +24,45 @@ function cloneDeepWithEJSON(obj: any) {
       // Serialize with EJSON, then deserialize back to get cloned object with EJSON types
       const serialized = EJSON.stringify(obj)
       return EJSON.parse(serialized)
-    } catch (e) {
+    } catch (e: any) {
       // Handle circular references or other EJSON serialization errors
-      logger.warn('EJSON.stringify failed (circular reference?):', (e as Error).message, '- Falling back to JSON.')
+      if (e && typeof e === 'object') {
+        if (e.name === 'TypeError' && /circular/i.test(e.message)) {
+          logger.warn('EJSON.stringify failed due to circular reference:', e.message, '- Falling back to JSON.')
+        } else if (e.name === 'TypeError') {
+          logger.warn('EJSON.stringify TypeError:', e.message, '- Falling back to JSON.')
+        } else {
+          logger.warn('EJSON.stringify failed:', e.name, e.message, '- Falling back to JSON.')
+        }
+      } else {
+        logger.warn('EJSON.stringify failed with unknown error:', e, '- Falling back to JSON.')
+      }
       // Fall through to JSON fallback below
     }
+  } else {
+    logger.warn(
+      'EJSON not available - Date/ObjectId/Binary exports may lose type information.',
+      'Try refreshing the page or waiting for Meteor to fully load.'
+    )
   }
 
   // Fallback to regular JSON (will lose Date objects)
   // This should rarely happen, but can occur if injector runs before Meteor loads
-  logger.warn(
-    'EJSON not available - Date/ObjectId/Binary exports may lose type information.',
-    'Try refreshing the page or waiting for Meteor to fully load.'
-  )
-
   try {
     return JSON.parse(JSON.stringify(obj))
-  } catch (e) {
+  } catch (e: any) {
     // Handle circular references or other JSON serialization errors
-    logger.warn('Failed to clone object (circular reference or non-serializable data):', (e as Error).message)
+    if (e && typeof e === 'object') {
+      if (e.name === 'TypeError' && /circular/i.test(e.message)) {
+        logger.warn('JSON.stringify failed due to circular reference:', e.message)
+      } else if (e.name === 'TypeError') {
+        logger.warn('JSON.stringify TypeError:', e.message)
+      } else {
+        logger.warn('JSON.stringify failed:', e.name, e.message)
+      }
+    } else {
+      logger.warn('JSON.stringify failed with unknown error:', e)
+    }
     return {} // Return empty object instead of crashing
   }
 }

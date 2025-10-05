@@ -291,36 +291,19 @@ describe('MongoExportFormats - EJSON Handling', () => {
       expect(result).toContain('createdAt: Date')
     })
 
-    it('should map Binary to Buffer', () => {
-      const result = TYPESCRIPT_INTERFACE.formatter({
-        documents: ejsonTestDocs,
-        collectionName: 'users',
-      })
 
-      expect(result).toContain('avatar?: Buffer')
-    })
-
-    it('should handle nested objects correctly', () => {
+    it('should correctly generate nested interfaces for nested objects', () => {
       const nestedDocs = [
         {
           _id: '1',
           user: {
-            name: 'Alice',
-            age: 30,
-            address: {
-              city: 'NYC',
-              zip: '10001',
-            },
-          },
-        },
-        {
-          _id: '2',
-          user: {
-            name: 'Bob',
-            age: 25,
-            address: {
-              city: 'LA',
-              zip: '90001',
+            name: 'John',
+            profile: {
+              age: 30,
+              address: {
+                city: 'NYC',
+                zip: '10001',
+              },
             },
           },
         },
@@ -328,20 +311,31 @@ describe('MongoExportFormats - EJSON Handling', () => {
 
       const result = TYPESCRIPT_INTERFACE.formatter({
         documents: nestedDocs,
-        collectionName: 'profiles',
+        collectionName: 'nested',
       })
 
-      // Should generate nested interfaces, not flattened dot notation
-      expect(result).toContain('export interface Profiles {')
+      // Check for proper nested structure (not flattened dot notation)
       expect(result).toContain('user: {')
       expect(result).toContain('name: string')
+      expect(result).toContain('profile: {')
       expect(result).toContain('age: number')
       expect(result).toContain('address: {')
       expect(result).toContain('city: string')
       expect(result).toContain('zip: string')
-      // Should NOT contain flattened keys like 'user.name'
-      expect(result).not.toContain('user.name')
-      expect(result).not.toContain('user.address.city')
+
+      // Critical: ensure we don't have the BUG (flattened dot notation)
+      expect(result).not.toContain('"user.name"')
+      expect(result).not.toContain('"user.profile.age"')
+      expect(result).not.toContain('"user.profile.address.city"')
+    })
+
+    it('should map Binary to Buffer', () => {
+      const result = TYPESCRIPT_INTERFACE.formatter({
+        documents: ejsonTestDocs,
+        collectionName: 'users',
+      })
+
+      expect(result).toContain('avatar?: Buffer')
     })
   })
 

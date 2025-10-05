@@ -74,6 +74,7 @@ interface DDPLog {
   host?: string
   filterType?: FilterType | null
   preview?: string
+  byteSize?: number
 }
 
 interface Bookmark {

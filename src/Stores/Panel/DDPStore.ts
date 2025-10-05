@@ -1,11 +1,32 @@
 import debounce from 'lodash.debounce'
 import { action, computed, makeObservable, observable, runInAction } from 'mobx'
+import EventEmitter from 'eventemitter3'
 import { Searchable } from '../Common/Searchable'
 import { PanelStore } from '@/Stores/PanelStore'
 import { generatePreview } from '@/Utils/MessageFormatter'
 import { clearCache } from '@/Bridge'
 
-export class DDPStore extends Searchable<DDPLog> {
+class SearchableEventEmitter<T> extends Searchable<T> {
+  private emitter = new EventEmitter()
+
+  emit(event: string, ...args: any[]) {
+    return this.emitter.emit(event, ...args)
+  }
+
+  on(event: string, fn: (...args: any[]) => void) {
+    return this.emitter.on(event, fn)
+  }
+
+  off(event: string, fn: (...args: any[]) => void) {
+    return this.emitter.off(event, fn)
+  }
+
+  once(event: string, fn: (...args: any[]) => void) {
+    return this.emitter.once(event, fn)
+  }
+}
+
+export class DDPStore extends SearchableEventEmitter<DDPLog> {
   @observable inboundBytes = 0
   @observable outboundBytes = 0
   @observable newLogs: string[] = []
@@ -34,6 +55,17 @@ export class DDPStore extends Searchable<DDPLog> {
     this.outboundBytes += buffer
       .filter(log => log.isOutbound)
       .reduce((sum, log) => sum + (log.size ?? 0), 0)
+
+    // Emit events for DDP 'changed' messages (for Workload C)
+    buffer.forEach(log => {
+      if (log.parsedContent.msg === 'changed') {
+        this.emit('ddp-changed', {
+          docId: log.parsedContent.id,
+          collection: log.parsedContent.collection,
+          fields: Object.keys(log.parsedContent.fields || {}),
+        })
+      }
+    })
 
     this.clearNewLogs()
   }
@@ -80,6 +112,21 @@ export class DDPStore extends Searchable<DDPLog> {
     )
   }
 
+  @computed
+  get methodLogs() {
+    return this.collection.filter(log => log.parsedContent.msg === 'method')
+  }
+
+  @computed
+  get resultLogs() {
+    return this.collection.filter(log => log.parsedContent.msg === 'result')
+  }
+
+  @computed
+  get updatedLogs() {
+    return this.collection.filter(log => log.parsedContent.msg === 'updated')
+  }
+
   getSubscriptionInit(subscription) {
     return this.subscriptionLogs.find(
       log => log.parsedContent.id === subscription.id,
@@ -112,6 +159,35 @@ export class DDPStore extends Searchable<DDPLog> {
         init: this.getSubscriptionInit(subscription),
         ready: this.getSubscriptionReady(subscription),
       },
+    }
+  }
+
+  getMethodResult(methodId: string) {
+    return this.resultLogs.find(log => log.parsedContent.id === methodId)
+  }
+
+  getMethodUpdated(methodId: string) {
+    return this.updatedLogs.find(log =>
+      log.parsedContent.methods?.includes(methodId),
+    )
+  }
+
+  getMethodLatency(methodId: string) {
+    const methodLog = this.methodLogs.find(
+      log => log.parsedContent.id === methodId,
+    )
+    const resultLog = this.getMethodResult(methodId)
+    const updatedLog = this.getMethodUpdated(methodId)
+
+    if (!methodLog || !resultLog) return null
+
+    return {
+      timeToResult: resultLog.timestamp - methodLog.timestamp,
+      timeToReady: updatedLog
+        ? updatedLog.timestamp - methodLog.timestamp
+        : null,
+      methodName: methodLog.parsedContent.method,
+      params: methodLog.parsedContent.params,
     }
   }
 }

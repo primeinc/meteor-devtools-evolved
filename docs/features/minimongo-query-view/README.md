@@ -48,16 +48,23 @@ This follows the **exact same architecture** as DDP Message Log, which already w
 
 **For complete codebase inventory, see:** **[../../architecture/CODEBASE_INVENTORY.md](../../architecture/CODEBASE_INVENTORY.md)**
 
-### Quick Summary (65% Complete)
+### Infrastructure Status (65% Complete)
 
-| Category | Status | Key Finding |
-|----------|--------|-------------|
-| **Panels** | 6 production panels | DDP, Subscriptions, Performance, Minimongo, Bookmarks, Sponsor |
-| **Correlation** | ✅ Working pattern | `SubscriptionStore.subsWithMeta` proves cross-store correlation works |
-| **Method Wrapping** | ✅ Infrastructure exists | `MeteorAdapter.ts:28-53` wraps ALL Minimongo methods |
-| **UI Components** | 7+ reusable | Blueprint.js + styled-components + react-window |
-| **MobX Stores** | 9 stores proven | Domain/UI separation, @computed, @action, flow(), reaction() |
-| **Message Passing** | 100% complete | Registry, Bridge, sendMessage all working |
+| Component | Planned | Status | Details |
+|-----------|---------|--------|---------|
+| **MobX Stores** | Domain stores with correlation | 60% | 6 domain stores with proven correlation patterns |
+| **React UI Components** | Blueprint.js + reusable components | 65% | Blueprint.js + styled-components + 7 reusable components |
+| **Injection/Interception** | Method wrapping for logging | 70% | Method wrapping exists (`MeteorAdapter.ts:28-53`), needs extension for query logging |
+| **Message Passing** | Content ↔ Background ↔ Panel | 100% | Registry, Bridge, sendMessage all working |
+| **Correlation Patterns** | Cross-store data correlation | 50% | SubscriptionStore ↔ DDPStore proven, needs Minimongo ↔ DDP |
+| **Export Formats** | 8 MongoDB export formats | 100% | ✅ Complete (moved to `docs/features/export-formats/`) |
+
+**Key Discoveries:**
+- **Panels:** 6 production panels (DDP, Subscriptions, Performance, Minimongo, Bookmarks, Sponsor)
+- **Correlation Pattern:** `SubscriptionStore.subsWithMeta` proves cross-store correlation works
+- **Method Wrapping:** `MeteorAdapter.ts:28-53` already wraps ALL Minimongo methods
+- **UI Components:** 7+ reusable components ready for query view
+- **MobX Stores:** 9 stores proven with @computed, @action, flow(), reaction() patterns
 
 ### 🔑 CRITICAL DISCOVERY: Correlation Pattern Already Works!
 
@@ -348,32 +355,43 @@ class MinimongoDDPCorrelator {
 
 | File | Purpose | Read Order | For |
 |------|---------|------------|-----|
-| **LLM_IMPLEMENTATION_GUIDE.md** | Step-by-step with DDP pattern mapping + correlation | ① First | LLMs, New Developers |
-| **ARCHITECTURE_DECISIONS.md** | Critical decisions (now includes ADR-008: Correlation Strategy) | ② Second | LLMs, Architects |
-| **FEATURE_SPEC.md** | Original specification | ③ Third | Product, Developers |
-| **reference-components/** | Example React components | ④ Reference | Frontend Developers |
+| **README.md** (this file) | Feature overview, infrastructure status, quick start | ① First | Everyone |
+| **CHANGELOG.md** | Feature evolution history | ② Reference | Everyone |
+| **IMPLEMENTATION_PLAN_V2.md** | Orchestration + workload overview | ③ Second | Project Managers, Developers |
+| **ARCHITECTURE_DECISIONS.md** | Critical design decisions (ADR-001 through ADR-013) | ④ Third | Architects, Developers |
+| **FEATURE_SPEC.md** | Original requirements and user stories | ⑤ Reference | Product, Developers |
+| **implementation/** | 7 modular workload files + gotchas + testing | ⑥ Implementation | Assigned Developers |
+| **reference-components/** | Example React components | ⑦ Reference | Frontend Developers |
 
 ### General Reference (Applies to All Features)
 
 | File | Purpose | For |
 |------|---------|-----|
-| **[../../METEOR_PATTERNS_REFERENCE.md](../../METEOR_PATTERNS_REFERENCE.md)** | Production Meteor.js + MobX patterns (immediate + future) | All Developers |
+| **[../../METEOR_PATTERNS_REFERENCE.md](../../METEOR_PATTERNS_REFERENCE.md)** | Production Meteor.js + MobX patterns | All Developers |
+| **[../../architecture/CODEBASE_INVENTORY.md](../../architecture/CODEBASE_INVENTORY.md)** | Complete infrastructure inventory | Developers starting implementation |
+| **[../export-formats/](../export-formats/)** | MongoDB export formats (completed feature) | Anyone needing export functionality |
 
 ---
 
 ## 🎯 Quick Start for Implementers
 
-**If you're a human developer:**
+**If you're a project manager:**
+1. Read [IMPLEMENTATION_PLAN_V2.md](./IMPLEMENTATION_PLAN_V2.md) for workload assignments
+2. Review [implementation/architecture-gotchas.md](./implementation/architecture-gotchas.md) with all devs
+3. Ensure Workload B starts first (critical path)
+
+**If you're a developer:**
 1. Read this README for confidence that the design is sound
-2. **Study `src/Injectors/DDPInjector.ts`** - it's your template
-3. Read `ARCHITECTURE_DECISIONS.md` to understand key technical choices
-4. Read `LLM_IMPLEMENTATION_GUIDE.md` for step-by-step implementation
+2. Read your assigned workload file in `implementation/`
+3. Read [implementation/architecture-gotchas.md](./implementation/architecture-gotchas.md) (state persistence + merge box)
+4. **Study `src/Injectors/DDPInjector.ts`** and `src/Pages/Panel/DDP/` as templates
+5. Read [implementation/testing-strategy.md](./implementation/testing-strategy.md) for test expectations
 
 **If you're an LLM:**
-1. Read `LLM_IMPLEMENTATION_GUIDE.md` (optimized for you!)
-2. **Study `src/Injectors/DDPInjector.ts`** and `src/Pages/Panel/DDP/` as templates
-3. Make decisions from `ARCHITECTURE_DECISIONS.md` (especially ADR-008)
-4. Follow the implementation checklist in the guide
+1. Read the relevant workload file in `implementation/` for your assigned task
+2. Read [ARCHITECTURE_DECISIONS.md](./ARCHITECTURE_DECISIONS.md) (especially ADR-008: DDP Correlation)
+3. **Study `src/Injectors/DDPInjector.ts`** and `src/Pages/Panel/DDP/` as templates
+4. Follow the implementation checklist in your workload document
 
 ---
 

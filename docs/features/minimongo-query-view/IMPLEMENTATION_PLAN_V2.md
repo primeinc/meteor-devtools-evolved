@@ -363,7 +363,7 @@ docs/features/minimongo-query-view/implementation/
 After implementation complete:
 
 1. ✅ Update `README.md` with new features
-2. ✅ Update `STATUS.md` with completion percentages
+2. ✅ Update `CHANGELOG.md` with new version
 3. ✅ Add user guide for new panels (Reactivity, Auditor)
 4. ✅ Update `ARCHITECTURE_DECISIONS.md` with new ADRs
 5. ✅ Create demo videos for each major feature
@@ -393,11 +393,12 @@ After implementation complete:
 
 ## Related Documentation
 
+- **Changelog:** [CHANGELOG.md](./CHANGELOG.md) - Feature evolution history
 - **Feature Spec:** [FEATURE_SPEC.md](./FEATURE_SPEC.md) - Original requirements
 - **Architecture Decisions:** [ARCHITECTURE_DECISIONS.md](./ARCHITECTURE_DECISIONS.md) - ADRs
-- **Codebase Inventory:** [../architecture/CODEBASE_INVENTORY.md](../architecture/CODEBASE_INVENTORY.md) - What exists
-- **Meteor Patterns:** [../METEOR_PATTERNS_REFERENCE.md](../METEOR_PATTERNS_REFERENCE.md) - General patterns
-- **Export Formats:** [EXPORT_FORMATS_SPEC.md](./EXPORT_FORMATS_SPEC.md) - Data export (100% complete)
+- **Codebase Inventory:** [../../architecture/CODEBASE_INVENTORY.md](../../architecture/CODEBASE_INVENTORY.md) - What exists
+- **Meteor Patterns:** [../../METEOR_PATTERNS_REFERENCE.md](../../METEOR_PATTERNS_REFERENCE.md) - General patterns
+- **Export Formats:** [../export-formats/README.md](../export-formats/README.md) - MongoDB export feature (100% complete, moved to general docs)
 
 ---
 

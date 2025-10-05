@@ -57,15 +57,17 @@ export class MinimongoDDPCorrelator {
       )
     })
 
-    const addedDocuments = recentDDP.filter(
-      l => l.parsedContent?.msg === 'added'
-    ).length
-    const changedDocuments = recentDDP.filter(
-      l => l.parsedContent?.msg === 'changed'
-    ).length
-    const removedDocuments = recentDDP.filter(
-      l => l.parsedContent?.msg === 'removed'
-    ).length
+    // Count document types in a single pass
+    const counts = recentDDP.reduce(
+      (acc, log) => {
+        const msg = log.parsedContent?.msg
+        if (msg === 'added') acc.addedDocuments++
+        else if (msg === 'changed') acc.changedDocuments++
+        else if (msg === 'removed') acc.removedDocuments++
+        return acc
+      },
+      { addedDocuments: 0, changedDocuments: 0, removedDocuments: 0 }
+    )
 
     // Determine correlation confidence
     let correlationConfidence: 'HIGH' | 'MEDIUM' | 'LOW' | 'NONE'
@@ -82,9 +84,7 @@ export class MinimongoDDPCorrelator {
     }
 
     return {
-      addedDocuments,
-      changedDocuments,
-      removedDocuments,
+      ...counts,
       correlationConfidence
     }
   }

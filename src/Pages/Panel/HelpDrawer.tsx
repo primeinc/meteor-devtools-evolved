@@ -101,11 +101,11 @@ export const HelpDrawer: FunctionComponent<Props> = observer(({
                     <Checkbox
                       checked={settingStore.isQueryStackTraceEnabled}
                       onChange={(e) => {
-                        settingStore.isQueryStackTraceEnabled = e.currentTarget.checked
+                        settingStore.setQueryStackTraceEnabled(e.currentTarget.checked)
                       }}
                       label="Enable Query Stack Traces"
                     />
-                    <p className="text-sm text-gray-400 mt-1 ml-6">
+                    <p style={{ fontSize: '0.875rem', color: '#a0aec0', marginTop: '0.25rem', marginLeft: '1.5rem' }}>
                       Capture stack traces for Minimongo operations. Useful for debugging but may impact performance on high-frequency queries.
                     </p>
                   </div>

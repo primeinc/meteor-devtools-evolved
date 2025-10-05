@@ -71,24 +71,24 @@ const formatTime = (timestamp: number) => {
   )
 }
 
+const getMethodIntent = (method: string) => {
+  if (method === 'find' || method === 'findOne') return 'primary'
+  if (method === 'insert') return 'success'
+  if (method === 'update' || method === 'upsert') return 'warning'
+  if (method === 'remove') return 'danger'
+  return 'none'
+}
+
+const getCorrelationIntent = (confidence: string) => {
+  if (confidence === 'HIGH') return 'success'
+  if (confidence === 'MEDIUM') return 'warning'
+  if (confidence === 'LOW') return 'none'
+  return 'none'
+}
+
 export const QueryLogRow: FunctionComponent<Props> = observer(
   ({ log, style }) => {
     const correlation = minimongoCorrelator.getCorrelationForQuery(log)
-
-    const getMethodIntent = (method: string) => {
-      if (method === 'find' || method === 'findOne') return 'primary'
-      if (method === 'insert') return 'success'
-      if (method === 'update' || method === 'upsert') return 'warning'
-      if (method === 'remove') return 'danger'
-      return 'none'
-    }
-
-    const getCorrelationIntent = (confidence: string) => {
-      if (confidence === 'HIGH') return 'success'
-      if (confidence === 'MEDIUM') return 'warning'
-      if (confidence === 'LOW') return 'none'
-      return 'none'
-    }
 
     return (
       <QueryLogWrapper style={style}>

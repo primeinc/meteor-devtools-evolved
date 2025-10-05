@@ -101,4 +101,9 @@ export class SettingStore implements ISettings {
       ),
     )
   }
+
+  @action
+  setQueryStackTraceEnabled(enabled: boolean) {
+    this.isQueryStackTraceEnabled = enabled
+  }
 }

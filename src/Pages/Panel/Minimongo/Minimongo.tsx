@@ -12,6 +12,13 @@ import { ExportDialog } from '@/Pages/Panel/Minimongo/components/ExportDialog'
 import { QueryLogList } from '@/Pages/Panel/Minimongo/components/QueryLogList'
 import { Tabs, Tab } from '@blueprintjs/core'
 
+type MinimongoTabId = 'collections' | 'queries'
+
+const MINIMONGO_TABS = {
+  COLLECTIONS: 'collections' as MinimongoTabId,
+  QUERIES: 'queries' as MinimongoTabId,
+}
+
 interface Props {
   isVisible: boolean
 }
@@ -84,7 +91,7 @@ const Wrapper = styled.div`
 
 export const Minimongo: FunctionComponent<Props> = observer(({ isVisible }) => {
   const { minimongoStore } = usePanelStore()
-  const [activeTab, setActiveTab] = useState<'collections' | 'queries'>('collections')
+  const [activeTab, setActiveTab] = useState<MinimongoTabId>(MINIMONGO_TABS.COLLECTIONS)
 
   const isActiveCollectionMissing =
     minimongoStore.activeCollection &&
@@ -94,6 +101,13 @@ export const Minimongo: FunctionComponent<Props> = observer(({ isVisible }) => {
     minimongoStore.setActiveCollection(null)
   }
 
+  const handleTabChange = (newTabId: string | number) => {
+    // Validate tab ID before setting
+    if (newTabId === MINIMONGO_TABS.COLLECTIONS || newTabId === MINIMONGO_TABS.QUERIES) {
+      setActiveTab(newTabId)
+    }
+  }
+
   return (
     <Hideable isVisible={isVisible}>
       <div className={'mde-content'}>
@@ -101,11 +115,11 @@ export const Minimongo: FunctionComponent<Props> = observer(({ isVisible }) => {
           <Tabs
             id="minimongo-tabs"
             selectedTabId={activeTab}
-            onChange={(newTabId) => setActiveTab(newTabId as 'collections' | 'queries')}
+            onChange={handleTabChange}
             className="tabs-container"
           >
             <Tab 
-              id="collections" 
+              id={MINIMONGO_TABS.COLLECTIONS}
               title="Collections"
               panel={
                 <div className="content-wrapper">
@@ -142,7 +156,7 @@ export const Minimongo: FunctionComponent<Props> = observer(({ isVisible }) => {
               }
             />
             <Tab 
-              id="queries" 
+              id={MINIMONGO_TABS.QUERIES}
               title="Query Log"
               panel={<QueryLogList />}
             />

@@ -140,7 +140,7 @@ export class MinimongoStore {
   addMethodLog(log: MinimongoMethodLog) {
     // Strip stack trace if feature is disabled in settings
     // This provides performance optimization since stack traces are expensive
-    if (!PanelStore?.settingStore?.isQueryStackTraceEnabled) {
+    if (!PanelStore.settingStore?.isQueryStackTraceEnabled) {
       log.stackTrace = undefined
     }
 

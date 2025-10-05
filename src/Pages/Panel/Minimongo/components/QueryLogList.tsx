@@ -1,4 +1,4 @@
-import React, { FunctionComponent } from 'react'
+import React, { FunctionComponent, useRef, useState, useEffect } from 'react'
 import { FixedSizeList } from 'react-window'
 import { observer } from 'mobx-react-lite'
 import { usePanelStore } from '@/Stores/PanelStore'
@@ -69,6 +69,24 @@ const QueryLogListWrapper = styled.div`
 export const QueryLogList: FunctionComponent = observer(() => {
   const { minimongoStore } = usePanelStore()
   const logs = minimongoStore.methodLogs
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [listHeight, setListHeight] = useState(600)
+
+  useEffect(() => {
+    if (!containerRef.current) return
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setListHeight(entry.contentRect.height)
+      }
+    })
+
+    resizeObserver.observe(containerRef.current)
+
+    return () => {
+      resizeObserver.disconnect()
+    }
+  }, [])
 
   if (logs.length === 0) {
     return (
@@ -90,9 +108,9 @@ export const QueryLogList: FunctionComponent = observer(() => {
         <div className="selector">Selector</div>
         <div className="correlation">Correlation</div>
       </div>
-      <div className="list-container">
+      <div className="list-container" ref={containerRef}>
         <FixedSizeList
-          height={600}
+          height={listHeight}
           itemCount={logs.length}
           itemSize={36}
           width="100%"

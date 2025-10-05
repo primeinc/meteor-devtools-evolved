@@ -50,8 +50,9 @@ export const MeteorAdapter = () => {
         })
 
         // Send detailed method log with optional stack trace (new functionality)
-        // Note: Stack traces are always captured but can be stripped in the store
-        // based on settings since we don't have access to PanelStore in inject context
+        // Stack traces are captured here in the inject context (where settings are unavailable)
+        // but will be conditionally stripped in MinimongoStore based on user settings
+        // to optimize performance when stack traces are not needed
         const stackTrace = (() => {
           try {
             const error = new Error()
@@ -69,7 +70,7 @@ export const MeteorAdapter = () => {
           options: args[2],   // For find (fields, sort, limit)
           runtime,
           stackTrace,
-          timestamp: Date.now()
+          timestamp: startMs
         })
 
         return result

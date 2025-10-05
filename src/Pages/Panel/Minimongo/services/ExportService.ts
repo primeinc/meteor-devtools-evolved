@@ -92,7 +92,7 @@ export const ExportService = {
     options: ExportOptions = {},
   ): Promise<void> {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-    const name = `${sanitizeFilename(collectionName)}_${timestamp}.${format.extension}`
+    const name = `${sanitizeFilename(collectionName)}_${format.key}_${timestamp}.${format.extension}`
 
     onProgress(0.05, `Generating ${format.name}...`)
 

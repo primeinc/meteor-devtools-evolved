@@ -2,7 +2,26 @@ import { warning } from '@/Log'
 import { Registry, sendMessage } from '@/Browser/Inject'
 import throttle from 'lodash.throttle'
 
-function cloneDeep(obj: any) {
+/**
+ * Serialize object using EJSON to preserve Dates and other MongoDB types
+ *
+ * EJSON converts:
+ * - Date objects → {$date: timestamp}
+ * - ObjectIds remain as strings (Meteor uses string IDs client-side)
+ * - Binary → {$binary: base64}
+ *
+ * This preserves type information through the Chrome DevTools messaging protocol,
+ * which would otherwise stringify Dates to ISO strings via JSON.parse/stringify.
+ */
+function cloneDeepWithEJSON(obj: any) {
+  // Use Meteor's global EJSON if available, otherwise fallback to JSON
+  if (typeof (window as any).EJSON !== 'undefined') {
+    // Serialize with EJSON, then deserialize back to get cloned object with EJSON types
+    const serialized = (window as any).EJSON.stringify(obj)
+    return (window as any).EJSON.parse(serialized)
+  }
+
+  // Fallback to regular JSON (will lose Date objects)
   return JSON.parse(JSON.stringify(obj))
 }
 
@@ -13,7 +32,7 @@ function isArray(obj: any) {
 const cleanup = (object: any) => {
   if (typeof object !== 'object') return object
 
-  const clonedObject = cloneDeep(object)
+  const clonedObject = cloneDeepWithEJSON(object)
 
   if (!clonedObject) return clonedObject
 
@@ -28,14 +47,17 @@ const cleanup = (object: any) => {
         return
       }
 
+      // EJSON preserves Dates as {$date: ...}, so this check is for non-EJSON Dates
       if (clonedObject[key] instanceof Date) {
-        clonedObject[key] = `[Object::${
-          clonedObject[key].constructor.name
-        }] ${clonedObject[key].toISOString()}`
+        // Convert to EJSON format
+        clonedObject[key] = { $date: clonedObject[key].getTime() }
         return
       }
 
-      if (clonedObject[key].constructor.name !== 'Object') {
+      // Handle other non-plain objects (excluding EJSON types)
+      if (clonedObject[key].constructor.name !== 'Object' &&
+          !clonedObject[key].$date &&
+          !clonedObject[key].$binary) {
         if (typeof clonedObject[key].toString === 'function') {
           clonedObject[key] = `[Object::${
             clonedObject[key].constructor.name

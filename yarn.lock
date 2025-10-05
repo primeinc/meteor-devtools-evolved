@@ -3538,6 +3538,11 @@ ecdsa-sig-formatter@1.0.11:
   dependencies:
     safe-buffer "^5.0.1"
 
+ejson@^2.2.3:
+  version "2.2.3"
+  resolved "https://registry.npmmirror.com/ejson/-/ejson-2.2.3.tgz#2b18c2d8f5d61a5cfc6e3eab72c3343909e7afd2"
+  integrity sha512-hsFvJp6OpGxFRQfBR3PSxFpaPALdHDY+SB3TRbMpLWNhvu8GzLiZutof5+/DFd2QekZo3KyXau75ngdJqQUSrw==
+
 electron-to-chromium@^1.5.227:
   version "1.5.228"
   resolved "https://registry.npmmirror.com/electron-to-chromium/-/electron-to-chromium-1.5.228.tgz"

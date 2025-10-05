@@ -3,28 +3,31 @@ import { observer } from 'mobx-react-lite'
 import {
   Dialog,
   Button,
-  RadioGroup,
-  Radio,
   ProgressBar,
   Callout,
   Classes,
   TextArea,
   Intent,
   Checkbox,
+  HTMLSelect,
 } from '@blueprintjs/core'
 import { runInAction } from 'mobx'
 import { usePanelStore } from '@/Stores/PanelStore'
+import { ExportService } from '../services/ExportService'
+import { ExportFormat } from '../services/MongoExportFormats'
 
 export interface ExportDialogProps {
   isOpen: boolean
   onClose: () => void
 }
 
+const ALL_FORMATS = ExportService.getFormats()
+
 export const ExportDialog = observer(function ExportDialog(
   props: ExportDialogProps,
 ) {
   const { minimongoStore } = usePanelStore()
-  const [mode, setMode] = useState<'data' | 'schema'>('data')
+  const [selectedFormat, setSelectedFormat] = useState<ExportFormat>(ALL_FORMATS[0])
   const [refreshData, setRefreshData] = useState(true)
   const [showPreview, setShowPreview] = useState(false)
   const [previewData, setPreviewData] = useState('')
@@ -60,59 +63,55 @@ export const ExportDialog = observer(function ExportDialog(
       collectionName = 'all-collections'
     }
     if (docs.length === 0) {
-      setPreviewData('[]')
-      setPreviewSize(2)
+      setPreviewData('No documents to export')
+      setPreviewSize(0)
       setShowPreview(true)
       return
     }
 
+    // Generate preview using selected format
+    const MAX_PREVIEW = 1024 * 1024 // 1MB
     let data = ''
-    if (mode === 'data') {
-      // Show documents up to 1MB preview limit
-      const MAX_PREVIEW = 1024 * 1024 // 1MB
-      const previewDocs = []
-      let previewText = '[\n'
 
-      for (let i = 0; i < docs.length; i++) {
-        const docJson = JSON.stringify(docs[i], null, 2)
-        const separator = i === 0 ? '' : ',\n'
-        const testText = previewText + separator + docJson
+    // For schema/type generation formats, show summary
+    const isSchemaFormat = ['json-schema', 'typescript', 'mongoose'].includes(selectedFormat.key)
 
-        if (testText.length + 2 > MAX_PREVIEW) break // +2 for closing ]\n
-
-        previewDocs.push(docs[i])
-        previewText = testText
-      }
-
-      previewText += '\n]'
-      data = previewText
-
-      const isFull = previewDocs.length === docs.length
-      setIsFullPreview(isFull)
-
-      if (!isFull) {
-        data += `\n\n... and ${docs.length - previewDocs.length} more documents (preview limited to 1MB)\n`
-      }
-    } else {
-      setIsFullPreview(false) // Schema is always a summary
-      // Show schema structure
-      const sample = docs.slice(0, 10).map(d => Object.keys(d))
+    if (isSchemaFormat) {
+      setIsFullPreview(false)
+      const sample = docs.slice(0, 100).map(d => Object.keys(d))
       const uniqueKeys = [...new Set(sample.flat())].sort()
-      data = 'Schema preview:\n'
-      data += 'Fields found:\n'
-      uniqueKeys.forEach(k => {
-        data += `  - ${k}\n`
-      })
-      data += `\nAnalyzing ${docs.length} documents...`
+      data = `${selectedFormat.name} Preview:\n\n`
+      data += `Format: ${selectedFormat.description}\n`
+      data += `Documents: ${docs.length}\n`
+      data += `Fields found: ${uniqueKeys.length}\n\n`
+      data += uniqueKeys.map(k => `  • ${k}`).join('\n')
+      data += `\n\nFull ${selectedFormat.name} will be generated on export.`
+    } else {
+      // For data formats, show actual preview
+      try {
+        const exportData = { documents: docs, collectionName }
+        const fullOutput = selectedFormat.formatter(exportData, { pretty: true })
+
+        if (fullOutput.length <= MAX_PREVIEW) {
+          data = fullOutput
+          setIsFullPreview(true)
+        } else {
+          data = fullOutput.substring(0, MAX_PREVIEW)
+          data += `\n\n... (preview truncated at 1MB, full export is ${(fullOutput.length / 1024).toFixed(1)} KB)`
+          setIsFullPreview(false)
+        }
+      } catch (e: any) {
+        data = `Preview error: ${e.message}`
+        setIsFullPreview(false)
+      }
     }
 
-    // Calculate actual size — sample-based estimate
+    // Calculate actual size
     const sample = docs.slice(0, 200).map(d => JSON.stringify(d))
     const avg = sample.length ? sample.reduce((a, s) => a + s.length, 0) / sample.length : 0
     const bytes = Math.round(avg * docs.length)
     const mb = Math.round(bytes / 1024 / 1024)
 
-    // Warn if export is likely to fail (>250MB)
     if (mb > 250) {
       data += `\n\n⚠️ WARNING: Export size (~${mb} MB) exceeds recommended limit (250 MB).\nLarge exports may fail silently or freeze the browser.`
     }
@@ -130,11 +129,11 @@ export const ExportDialog = observer(function ExportDialog(
       })
       generatePreview()
     }
-  }, [props.isOpen, mode, minimongoStore])
+  }, [props.isOpen, selectedFormat, minimongoStore])
 
   const start = async () => {
     abortRef.current = new AbortController()
-    await minimongoStore.exportActiveCollection(mode, abortRef.current.signal, refreshData)
+    await minimongoStore.exportActiveCollection(selectedFormat.key, abortRef.current.signal, refreshData)
   }
 
   const cancel = () => {
@@ -153,13 +152,25 @@ export const ExportDialog = observer(function ExportDialog(
     >
       <style>{`.export-dialog-portal { z-index: 999999; }`}</style>
       <div className={Classes.DIALOG_BODY}>
-        <RadioGroup
-          selectedValue={mode}
-          onChange={e => setMode((e.target as HTMLInputElement).value as any)}
-        >
-          <Radio label="Collection Data (JSON)" value="data" />
-          <Radio label="Inferred Schema (JSON Schema)" value="schema" />
-        </RadioGroup>
+        <div style={{ marginBottom: 16 }}>
+          <label className={Classes.LABEL}>
+            Export Format
+            <HTMLSelect
+              value={selectedFormat.key}
+              onChange={e => {
+                const format = ALL_FORMATS.find(f => f.key === e.target.value)
+                if (format) setSelectedFormat(format)
+              }}
+              fill
+            >
+              {ALL_FORMATS.map(format => (
+                <option key={format.key} value={format.key}>
+                  {format.name} — {format.description}
+                </option>
+              ))}
+            </HTMLSelect>
+          </label>
+        </div>
 
         <Checkbox
           checked={refreshData}
@@ -187,15 +198,12 @@ export const ExportDialog = observer(function ExportDialog(
                 marginTop: 8
               }}
             />
-            <Callout intent={mode === 'schema' ? Intent.PRIMARY : (isFullPreview ? Intent.SUCCESS : Intent.WARNING)} style={{ marginTop: 8 }}>
-              {mode === 'schema'
-                ? minimongoStore.activeCollection
-                  ? `Schema inferred from ${minimongoStore.activeCollectionDocuments?.filtered?.length || 0} documents`
-                  : `Schema inferred from ${minimongoStore.totalDocuments} documents across ${minimongoStore.collectionNames.length} collections`
-                : isFullPreview
-                  ? `Full preview shown. Export size: ${(previewSize / 1024).toFixed(1)} KB`
-                  : `Preview truncated at 1MB. Full export size: ${(previewSize / 1024).toFixed(1)} KB`
+            <Callout intent={isFullPreview ? Intent.SUCCESS : Intent.PRIMARY} style={{ marginTop: 8 }}>
+              {minimongoStore.activeCollection
+                ? `${selectedFormat.name}: ${minimongoStore.activeCollectionDocuments?.filtered?.length || 0} documents from "${minimongoStore.activeCollection}"`
+                : `${selectedFormat.name}: ${minimongoStore.totalDocuments} documents across ${minimongoStore.collectionNames.length} collections`
               }
+              {isFullPreview && ` — Full preview shown (${(previewSize / 1024).toFixed(1)} KB)`}
             </Callout>
           </div>
         )}

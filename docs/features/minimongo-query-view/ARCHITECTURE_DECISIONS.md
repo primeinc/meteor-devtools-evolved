@@ -973,6 +973,195 @@ findThing(id) { return this.array.find(x => x.id === id) }
 
 ---
 
+## ADR-011: MongoDB Export Formats
+
+**Status:** ✅ DECIDED
+
+**Context:**
+
+Current export implementation (ExportService.ts) has limitations:
+1. Basic schema inference (v1) - doesn't detect EJSON types (Date, ObjectID, Binary)
+2. Only 2 export modes: JSON data or JSON Schema
+3. No TypeScript interface generation
+4. No Mongoose schema generation
+5. No mongoimport-compatible format (requires manual EJSON conversion)
+
+**The Problem:**
+
+Developers need to:
+- Export Minimongo → `mongoimport` → real MongoDB (currently requires manual fixes)
+- Generate TypeScript types from collections (currently manual)
+- Generate Mongoose schemas from collections (currently manual)
+- Export to CSV for analysis (not supported)
+
+**Current State Assessment:**
+
+Existing `inferSchema()` function (lines 138-334):
+- ❌ Detects `Date` as `object` (should be `date-time`)
+- ❌ Detects `ObjectID` as `object` (should detect EJSON pattern)
+- ❌ Gives up on complex types (>3 variants → collapse to `{}`)
+- ❌ Only outputs JSON Schema
+- ⚠️ Marked as "v1" in comments (needs replacement)
+
+**Decision:** Replace schema inference and add 8 export formats
+
+**Implementation:**
+
+Create `MongoExportFormats.ts` utility with proper EJSON detection:
+
+```typescript
+// Proper type detection
+function detectTypeScriptType(value: any): string {
+  if (value instanceof Date) return 'Date'        // ✅ Proper
+  if (value?.$date) return 'Date'                 // ✅ EJSON
+  if (value?.$oid) return 'string'                // ✅ ObjectID
+  if (value?.$binary) return 'Buffer'             // ✅ Binary
+  // ... primitives
+}
+```
+
+**Export Formats:**
+
+| Format | Key | Extension | Purpose |
+|--------|-----|-----------|---------|
+| MongoDB Import (NDJSON) | `mongo-import-ndjson` | `.json` | `mongoimport --file data.json` (line-delimited) |
+| MongoDB Import (Array) | `mongo-import-array` | `.json` | `mongoimport --file data.json --jsonArray` |
+| MongoDB Compass | `mongo-compass` | `.json` | Copy/paste into Compass |
+| MongoDB Shell | `mongo-shell` | `.js` | `mongo < script.js` (insertMany) |
+| TypeScript Interface | `typescript` | `.ts` | Auto-generated types |
+| Mongoose Schema | `mongoose` | `.js` | Auto-generated model |
+| JSON Schema | `json-schema` | `.json` | Draft 2020-12 |
+| CSV | `csv` | `.csv` | Flattened (lossy, for analysis) |
+
+**Critical Features:**
+
+1. **Zero-manual-fix mongoimport:**
+```typescript
+// Uses EJSON.stringify to preserve types
+MONGO_IMPORT_NDJSON.formatter = (data) => {
+  return data.documents.map(doc => EJSON.stringify(doc)).join('\n')
+}
+```
+
+2. **Proper EJSON Type Detection:**
+```typescript
+// MongoDB Shell literal conversion
+if (value?.$oid) return `ObjectId("${value.$oid}")`
+if (value instanceof Date) return `ISODate("${value.toISOString()}")`
+if (value?.$binary) return `BinData(0, "${value.$binary}")`
+```
+
+3. **TypeScript Interface Generation:**
+```typescript
+export interface Users {
+  _id: string;
+  name: string;
+  email?: string;  // Optional if not in all docs
+  createdAt: Date;
+  roles: string[];
+}
+```
+
+4. **Mongoose Schema Generation:**
+```typescript
+const UsersSchema = new mongoose.Schema({
+  _id: { type: Schema.Types.ObjectId, required: true },
+  name: { type: String, required: true },
+  email: { type: String, required: false },
+  createdAt: { type: Date, required: true },
+  roles: { type: [String], required: true }
+});
+```
+
+**API Changes:**
+
+Replace old API:
+```typescript
+// OLD (deprecated but kept for compatibility)
+ExportService.exportData(collectionName, docs, onProgress, signal)
+ExportService.exportSchema(collectionName, docs, onProgress, signal)
+
+// NEW (primary API)
+ExportService.getFormats() // Returns all available formats
+ExportService.exportCollection(format, collectionName, docs, onProgress, signal, options)
+```
+
+**UI Changes:**
+
+ExportDialog.tsx now shows format dropdown:
+```tsx
+<HTMLSelect
+  value={selectedFormat.key}
+  onChange={e => {
+    const format = ALL_FORMATS.find(f => f.key === e.target.value)!
+    setSelectedFormat(format)
+  }}
+>
+  {ALL_FORMATS.map(format => (
+    <option key={format.key} value={format.key}>
+      {format.name} - {format.description}
+    </option>
+  ))}
+</HTMLSelect>
+```
+
+**Migration:**
+
+Old code still works (backward compatible):
+- `exportData()` → Uses ByteAssembler (memory-efficient for large exports)
+- `exportSchema()` → Delegates to new `JSON_SCHEMA` format
+
+New code:
+- `exportCollection()` → Generates any format via `format.formatter()`
+
+**Why This Works:**
+
+1. **EJSON Preservation:** Uses `EJSON.stringify()` for MongoDB formats → zero manual fixes
+2. **Type Safety:** Proper detection of Date, ObjectID, Binary → accurate schemas
+3. **Code Generation:** TypeScript + Mongoose → saves developer time
+4. **Standards Compliance:** JSON Schema draft 2020-12, mongoimport NDJSON
+5. **Backward Compatible:** Old `exportData()` still works
+
+**Alternatives Considered:**
+
+**A. Keep existing schema inference, add formats separately**
+- ❌ Still has EJSON detection bugs
+- ❌ Duplicate type detection logic
+
+**B. Fix existing schema inference in-place**
+- ❌ Tied to JSON Schema output only
+- ❌ Hard to extend to TypeScript/Mongoose
+
+**C. New MongoExportFormats.ts (CHOSEN)**
+- ✅ Clean separation of concerns
+- ✅ Reusable type detection
+- ✅ Easy to add new formats
+- ✅ Proper EJSON handling
+
+**Rationale:**
+
+1. **Essential Feature:** 1-click export → mongoimport is table stakes for MongoDB tools
+2. **Saves Developer Time:** Auto-generating TypeScript/Mongoose schemas is huge productivity win
+3. **Fixes Critical Bug:** Current schema inference doesn't detect EJSON types (fails for real Meteor data)
+4. **Backward Compatible:** Doesn't break existing code, only adds capability
+
+**Implementation Estimate:**
+
+- Create MongoExportFormats.ts: 2 hours
+- Replace ExportService.ts schema inference: 1 hour
+- Update ExportDialog.tsx UI: 1 hour
+- Testing (8 formats × 3 scenarios): 2 hours
+- **Total: 6 hours**
+
+**Future Enhancements:**
+
+- Prisma schema generation
+- GraphQL schema generation
+- SQL DDL statements (experimental)
+- MongoDB aggregation pipeline templates
+
+---
+
 ## Summary for LLMs
 
 **Before implementing, make these decisions:**
@@ -987,6 +1176,7 @@ findThing(id) { return this.array.find(x => x.id === id) }
 8. ⚠️ **ADR-008:** **DDP Correlation Strategy (CRITICAL) - Option B recommended**
 9. ✅ **ADR-009:** Use 'ready' messages for session→subscription mapping (copy DDPStore)
 10. ✅ **ADR-010:** Use MobX @computed with indexing for O(1) correlation lookups
+11. ✅ **ADR-011:** MongoDB Export Formats - Replace v1 schema inference, add 8 formats with proper EJSON detection
 
 **Most Critical Decision:** ADR-008 (DDP Correlation) - This IS the feature. Without it, we're building a commodity tool.
 

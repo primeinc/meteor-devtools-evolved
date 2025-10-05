@@ -140,10 +140,11 @@ export class MinimongoStore {
 
   /**
    * Export active collection (or all collections if none selected) with optional data refresh
+   * @param exportType - Format key (e.g., 'mongo-import-ndjson', 'typescript') or legacy 'data'/'schema'
    */
   exportActiveCollection = flow(function* (
     this: MinimongoStore,
-    exportType: 'data' | 'schema',
+    exportType: string,
     signal: AbortSignal,
     refreshData: boolean = true,
   ) {
@@ -255,21 +256,15 @@ export class MinimongoStore {
     }
 
     try {
-      if (exportType === 'data') {
-        yield ExportService.exportData(
-          collectionName,
-          documents,
-          onProgress,
-          signal,
-        )
-      } else {
-        yield ExportService.exportSchema(
-          collectionName,
-          documents,
-          onProgress,
-          signal,
-        )
-      }
+      // Map legacy format keys to new system
+      let actualFormatKey = exportType
+      if (exportType === 'data') actualFormatKey = 'mongo-import-array'
+      if (exportType === 'schema') actualFormatKey = 'json-schema'
+
+      const format = ExportService.getFormats().find(f => f.key === actualFormatKey)
+      if (!format) throw new Error(`Unknown export format: ${exportType}`)
+
+      yield ExportService.exportCollection(format, collectionName, documents, onProgress, signal, { pretty: true })
       runInAction(() => {
         this.exportStatus = { progress: 1, message: 'Download complete' }
       })

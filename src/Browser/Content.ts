@@ -24,4 +24,5 @@ script.setAttribute('src', url)
 console.log('[Meteor DevTools] Injecting script:', url)
 document.documentElement.prepend(script)
 script.onload = () => console.log('[Meteor DevTools] Inject script loaded')
-script.onerror = (e) => console.error('[Meteor DevTools] Inject script failed to load', e)
+script.onerror = e =>
+  console.error('[Meteor DevTools] Inject script failed to load', e)

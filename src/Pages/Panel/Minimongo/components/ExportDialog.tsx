@@ -27,7 +27,9 @@ export const ExportDialog = observer(function ExportDialog(
   props: ExportDialogProps,
 ) {
   const { minimongoStore } = usePanelStore()
-  const [selectedFormat, setSelectedFormat] = useState<ExportFormat>(ALL_FORMATS[0])
+  const [selectedFormat, setSelectedFormat] = useState<ExportFormat>(
+    ALL_FORMATS[0],
+  )
   const [refreshData, setRefreshData] = useState(true)
   const [showPreview, setShowPreview] = useState(false)
   const [previewData, setPreviewData] = useState('')
@@ -54,11 +56,13 @@ export const ExportDialog = observer(function ExportDialog(
     } else {
       // All collections export
       const allDocs: any[] = []
-      Object.entries(minimongoStore.collections).forEach(([name, wrappers]: [string, any[]]) => {
-        wrappers.forEach((w: any) => {
-          allDocs.push({ _collection: name, ...w.document })
-        })
-      })
+      Object.entries(minimongoStore.collections).forEach(
+        ([name, wrappers]: [string, any[]]) => {
+          wrappers.forEach((w: any) => {
+            allDocs.push({ _collection: name, ...w.document })
+          })
+        },
+      )
       docs = allDocs
       collectionName = 'all-collections'
     }
@@ -126,7 +130,9 @@ export const ExportDialog = observer(function ExportDialog(
     if (isSchemaFormat || !fullOutput) {
       // For schema formats or if generation failed, estimate from sample
       const sample = docs.slice(0, 200).map(d => JSON.stringify(d))
-      const avg = sample.length ? sample.reduce((a, s) => a + s.length, 0) / sample.length : 0
+      const avg = sample.length
+        ? sample.reduce((a, s) => a + s.length, 0) / sample.length
+        : 0
       bytes = Math.round(avg * docs.length)
     } else {
       // For data formats, use actual generated output size
@@ -155,7 +161,11 @@ export const ExportDialog = observer(function ExportDialog(
 
   const start = async () => {
     abortRef.current = new AbortController()
-    await minimongoStore.exportActiveCollection(selectedFormat.key, abortRef.current.signal, refreshData)
+    await minimongoStore.exportActiveCollection(
+      selectedFormat.key,
+      abortRef.current.signal,
+      refreshData,
+    )
   }
 
   const cancel = () => {
@@ -169,8 +179,12 @@ export const ExportDialog = observer(function ExportDialog(
     <Dialog
       isOpen={props.isOpen}
       onClose={props.onClose}
-      title={minimongoStore.activeCollection ? `Export ${minimongoStore.activeCollection}` : "Export All Collections"}
-      portalClassName="export-dialog-portal"
+      title={
+        minimongoStore.activeCollection
+          ? `Export ${minimongoStore.activeCollection}`
+          : 'Export All Collections'
+      }
+      portalClassName='export-dialog-portal'
     >
       <style>{`.export-dialog-portal { z-index: 999999; }`}</style>
       <div className={Classes.DIALOG_BODY}>
@@ -197,40 +211,51 @@ export const ExportDialog = observer(function ExportDialog(
         <Checkbox
           checked={refreshData}
           onChange={e => setRefreshData((e.target as HTMLInputElement).checked)}
-          label="Refresh data from page before export"
+          label='Refresh data from page before export'
           style={{ marginTop: 12 }}
         />
 
-        <Callout icon="info-sign" intent="primary" style={{ marginTop: 16 }}>
-          Note: Data types are preserved using EJSON serialization.
-          Date, ObjectId, and Binary types are exported with full type information.
+        <Callout icon='info-sign' intent='primary' style={{ marginTop: 16 }}>
+          Note: Data types are preserved using EJSON serialization. Date,
+          ObjectId, and Binary types are exported with full type information.
         </Callout>
 
-        {showPreview && !minimongoStore.isExportBusy && !minimongoStore.exportStatus.message && (
-          <div style={{ marginTop: 16 }}>
-            <h4>Preview (Size: {(previewSize / 1024).toFixed(1)} KB)</h4>
-            <TextArea
-              value={previewData}
-              readOnly
-              style={{
-                width: '100%',
-                height: '200px',
-                fontFamily: 'monospace',
-                fontSize: '11px',
-                marginTop: 8
-              }}
-            />
-            <Callout intent={isFullPreview ? Intent.SUCCESS : Intent.PRIMARY} style={{ marginTop: 8 }}>
-              {minimongoStore.activeCollection
-                ? `${selectedFormat.name}: ${minimongoStore.activeCollectionDocuments?.filtered?.length || 0} documents from "${minimongoStore.activeCollection}"`
-                : `${selectedFormat.name}: ${minimongoStore.totalDocuments} documents across ${minimongoStore.collectionNames.length} collections`
-              }
-              {isFullPreview && ` — Full preview shown (${(previewSize / 1024).toFixed(1)} KB)`}
-            </Callout>
-          </div>
-        )}
+        {showPreview &&
+          !minimongoStore.isExportBusy &&
+          !minimongoStore.exportStatus.message && (
+            <div style={{ marginTop: 16 }}>
+              <h4>Preview (Size: {(previewSize / 1024).toFixed(1)} KB)</h4>
+              <TextArea
+                value={previewData}
+                readOnly
+                style={{
+                  width: '100%',
+                  height: '200px',
+                  fontFamily: 'monospace',
+                  fontSize: '11px',
+                  marginTop: 8,
+                }}
+              />
+              <Callout
+                intent={isFullPreview ? Intent.SUCCESS : Intent.PRIMARY}
+                style={{ marginTop: 8 }}
+              >
+                {minimongoStore.activeCollection
+                  ? `${selectedFormat.name}: ${
+                      minimongoStore.activeCollectionDocuments?.filtered
+                        ?.length || 0
+                    } documents from "${minimongoStore.activeCollection}"`
+                  : `${selectedFormat.name}: ${minimongoStore.totalDocuments} documents across ${minimongoStore.collectionNames.length} collections`}
+                {isFullPreview &&
+                  ` — Full preview shown (${(previewSize / 1024).toFixed(
+                    1,
+                  )} KB)`}
+              </Callout>
+            </div>
+          )}
 
-        {(minimongoStore.isExportBusy || minimongoStore.exportStatus.message) && (
+        {(minimongoStore.isExportBusy ||
+          minimongoStore.exportStatus.message) && (
           <>
             <div style={{ marginTop: 16 }}>
               <ProgressBar
@@ -255,14 +280,14 @@ export const ExportDialog = observer(function ExportDialog(
           </Button>
           {!minimongoStore.isExportBusy ? (
             <Button
-              intent="primary"
+              intent='primary'
               onClick={start}
               disabled={!minimongoStore.collectionNames.length}
             >
               Download
             </Button>
           ) : (
-            <Button intent="warning" onClick={cancel}>
+            <Button intent='warning' onClick={cancel}>
               Cancel
             </Button>
           )}

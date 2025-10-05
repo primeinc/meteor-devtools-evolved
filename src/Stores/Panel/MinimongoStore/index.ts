@@ -1,5 +1,13 @@
 import debounce from 'lodash.debounce'
-import { action, computed, flow, makeObservable, observable, runInAction, toJS } from 'mobx'
+import {
+  action,
+  computed,
+  flow,
+  makeObservable,
+  observable,
+  runInAction,
+  toJS,
+} from 'mobx'
 import { CollectionStore } from './CollectionStore'
 import { JSONUtils } from '@/Utils/JSONUtils'
 import { StringUtils } from '@/Utils/StringUtils'
@@ -162,7 +170,12 @@ export class MinimongoStore {
 
     this.isExportBusy = true
     const isExportingAll = !this.activeCollection
-    logger.info('Export starting with refreshData:', refreshData, 'isExportingAll:', isExportingAll)
+    logger.info(
+      'Export starting with refreshData:',
+      refreshData,
+      'isExportingAll:',
+      isExportingAll,
+    )
 
     if (refreshData) {
       const reqId = `exp-${this.exportSeq++}`
@@ -181,7 +194,7 @@ export class MinimongoStore {
           runInAction(() => {
             this.exportStatus = {
               progress,
-              message: `→ BridgeAdapter.post('minimongo-get-collections', {requestId: '${reqId}'}) · Waiting for reply… (${remaining}s)`
+              message: `→ BridgeAdapter.post('minimongo-get-collections', {requestId: '${reqId}'}) · Waiting for reply… (${remaining}s)`,
             }
           })
         }, PROGRESS_INTERVAL)
@@ -189,7 +202,10 @@ export class MinimongoStore {
         const timeout = setTimeout(() => {
           cleanup()
           runInAction(() => {
-            this.exportStatus = { progress: 0, message: `Timeout: No reply after 5s · Using cached data` }
+            this.exportStatus = {
+              progress: 0,
+              message: `Timeout: No reply after 5s · Using cached data`,
+            }
           })
           resolve()
         }, REFRESH_TIMEOUT)
@@ -198,7 +214,10 @@ export class MinimongoStore {
           if (!payload || payload.requestId !== reqId) return
           cleanup()
           runInAction(() => {
-            this.exportStatus = { progress: 0, message: `Received: minimongo-get-collections reply · Using fresh data` }
+            this.exportStatus = {
+              progress: 0,
+              message: `Received: minimongo-get-collections reply · Using fresh data`,
+            }
           })
           resolve()
         }
@@ -214,7 +233,10 @@ export class MinimongoStore {
 
         // Initialize progress
         runInAction(() => {
-          this.exportStatus = { progress: 0, message: `Sent: minimongo-get-collections (reqId: ${reqId}) · Waiting… (5s)` }
+          this.exportStatus = {
+            progress: 0,
+            message: `Sent: minimongo-get-collections (reqId: ${reqId}) · Waiting… (5s)`,
+          }
         })
       })
 
@@ -242,18 +264,25 @@ export class MinimongoStore {
     } else {
       // All collections export - include _collection field to identify source
       const allDocs: any[] = []
-      Object.entries(toJS(this.collections)).forEach(([name, wrappers]: [string, any[]]) => {
-        wrappers.forEach((w: any) => {
-          allDocs.push({ _collection: name, ...w.document })
-        })
-      })
+      Object.entries(toJS(this.collections)).forEach(
+        ([name, wrappers]: [string, any[]]) => {
+          wrappers.forEach((w: any) => {
+            allDocs.push({ _collection: name, ...w.document })
+          })
+        },
+      )
       documents = allDocs
       collectionName = 'all-collections'
     }
 
     if (!documents?.length) {
       this.isExportBusy = false
-      this.exportStatus = { progress: 1, message: isExportingAll ? 'No collections to export' : 'Collection is empty' }
+      this.exportStatus = {
+        progress: 1,
+        message: isExportingAll
+          ? 'No collections to export'
+          : 'Collection is empty',
+      }
       return
     }
 
@@ -270,10 +299,19 @@ export class MinimongoStore {
       if (exportType === 'data') actualFormatKey = 'mongo-import-array'
       if (exportType === 'schema') actualFormatKey = 'json-schema'
 
-      const format = ExportService.getFormats().find(f => f.key === actualFormatKey)
+      const format = ExportService.getFormats().find(
+        f => f.key === actualFormatKey,
+      )
       if (!format) throw new Error(`Unknown export format: ${exportType}`)
 
-      yield ExportService.exportCollection(format, collectionName, documents, onProgress, signal, { pretty: true })
+      yield ExportService.exportCollection(
+        format,
+        collectionName,
+        documents,
+        onProgress,
+        signal,
+        { pretty: true },
+      )
       runInAction(() => {
         this.exportStatus = { progress: 1, message: 'Download complete' }
       })

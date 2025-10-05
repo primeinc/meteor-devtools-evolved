@@ -82,7 +82,9 @@ describe('ByteAssembler', () => {
     it('should handle chunk size + 1 items', async () => {
       const writer = new ByteAssembler()
       const count = 501
-      const items = Array.from({ length: count }, (_, i) => ({ _id: String(i) }))
+      const items = Array.from({ length: count }, (_, i) => ({
+        _id: String(i),
+      }))
 
       writer.beginArray()
       items.forEach((item, idx) => {
@@ -99,7 +101,9 @@ describe('ByteAssembler', () => {
     it('should handle chunk size - 1 items', async () => {
       const writer = new ByteAssembler()
       const count = 499
-      const items = Array.from({ length: count }, (_, i) => ({ _id: String(i) }))
+      const items = Array.from({ length: count }, (_, i) => ({
+        _id: String(i),
+      }))
 
       writer.beginArray()
       items.forEach((item, idx) => {

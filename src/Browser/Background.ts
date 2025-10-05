@@ -83,10 +83,25 @@ interface Uint8ArrayWithToBase64 extends Uint8Array {
   toBase64(): string
 }
 
+/**
+ * Type guard to check if Uint8Array has native toBase64 method (Chrome 118+).
+ *
+ * @param arr - The Uint8Array to check
+ * @returns True if the array has the toBase64 method
+ */
 function hasToBase64(arr: Uint8Array): arr is Uint8ArrayWithToBase64 {
-  return 'toBase64' in Uint8Array.prototype && typeof (arr as any).toBase64 === 'function'
+  return (
+    'toBase64' in Uint8Array.prototype &&
+    typeof (arr as any).toBase64 === 'function'
+  )
 }
 
+/**
+ * Converts a Uint8Array to base64 string using native method or fallback.
+ *
+ * @param bytes - The bytes to convert
+ * @returns Base64 encoded string
+ */
 function uint8ArrayToBase64(bytes: Uint8Array): string {
   // Use native toBase64 if available (Chrome 118+)
   if (hasToBase64(bytes)) {
@@ -101,14 +116,22 @@ function uint8ArrayToBase64(bytes: Uint8Array): string {
     const chunk = bytes.subarray(i, Math.min(i + CHUNK_SIZE, bytes.length))
     // Convert each byte to a character code point for btoa
     // This ensures proper encoding for ALL byte values (0x00-0xFF)
-    const binString = Array.from(chunk, (byte) => String.fromCodePoint(byte)).join('')
+    const binString = Array.from(chunk, byte =>
+      String.fromCodePoint(byte),
+    ).join('')
     base64 += btoa(binString)
   }
 
   return base64
 }
 
-// Helper: mark transfer as failed and schedule cleanup
+/**
+ * Mark transfer as failed and schedule cleanup.
+ *
+ * @param id - The transfer ID
+ * @param reason - The failure reason
+ * @param port - The runtime port to send failure message to
+ */
 function markFailed(id: string, reason: string, port: RuntimePort) {
   const t = transfers.get(id)
   if (!t) {
@@ -128,8 +151,14 @@ function markFailed(id: string, reason: string, port: RuntimePort) {
   }, FAILED_TRANSFER_CLEANUP_MS)
 }
 
-// Helper: log auth error and ignore (don't fail transfer)
-// This prevents DoS attacks where invalid tokens/senders could kill legitimate exports
+/**
+ * Log auth error and ignore (don't fail transfer).
+ * This prevents DoS attacks where invalid tokens/senders could kill legitimate exports.
+ *
+ * @param id - The transfer ID
+ * @param reason - The auth error reason
+ * @param payload - The payload that failed auth
+ */
 function logAuthError(id: string, reason: string, payload: any) {
   exportLogger.warn(`Auth error for ${id}, ignoring:`, reason, {
     receivedToken: payload.token,
@@ -137,7 +166,11 @@ function logAuthError(id: string, reason: string, payload: any) {
   })
 }
 
-// Helper: schedule/refresh TTL for a transfer
+/**
+ * Schedule/refresh TTL for a transfer.
+ *
+ * @param id - The transfer ID
+ */
 function scheduleTTL(id: string) {
   const t = transfers.get(id)
   if (!t) return
@@ -153,7 +186,13 @@ function scheduleTTL(id: string) {
   }, TTL_MS)
 }
 
-// Helper: Download via offscreen document (for MV3 service worker)
+/**
+ * Download via offscreen document (for MV3 service worker).
+ *
+ * @param blob - The blob to download
+ * @param filename - The filename for the download
+ * @param mime - The MIME type of the blob
+ */
 async function downloadViaOffscreen(
   blob: Blob,
   filename: string,
@@ -317,9 +356,9 @@ const panelListener = () => {
           }
 
           const bytes = payload.bytes as number[] | Uint8Array
-          const chunkBytes = (bytes instanceof Uint8Array
-            ? bytes
-            : new Uint8Array(bytes)) as Uint8Array<ArrayBuffer>
+          const chunkBytes = (
+            bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)
+          ) as Uint8Array<ArrayBuffer>
           t.chunks.push(chunkBytes)
           t.lastSeen = Date.now()
           t.inflight++
@@ -397,6 +436,9 @@ const panelListener = () => {
           // No hash verification, proceed immediately
           startDownload()
 
+          /**
+           *
+           */
           async function startDownload() {
             const done = (downloadId?: number) => {
               t.state = 'COMPLETED'
@@ -416,7 +458,10 @@ const panelListener = () => {
                 { url, filename, saveAs: false },
                 id => {
                   // Revoke URL after delay to allow download to complete
-                  setTimeout(() => URL.revokeObjectURL(url), URL_REVOKE_DELAY_MS)
+                  setTimeout(
+                    () => URL.revokeObjectURL(url),
+                    URL_REVOKE_DELAY_MS,
+                  )
                   // Check for download errors
                   if (chrome.runtime.lastError) {
                     exportLogger.error(
@@ -614,7 +659,7 @@ const tabListener = () => {
     // Remove old download-blob handler - we use port-based relay now
   }
   /**
-   * @issue https://stackoverflow.com/a/73836810/10567157
+   * @see https://stackoverflow.com/a/73836810/10567157
    */
   chrome.runtime.onMessage.addListener(function (
     request,

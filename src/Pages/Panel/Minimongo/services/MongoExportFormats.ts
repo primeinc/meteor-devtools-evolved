@@ -29,7 +29,10 @@
  * The ejson package uses CommonJS module.exports, requiring default import.
  */
 import EJSON from 'ejson'
-import { safeCollectionAccessor, escapeMongoShellString } from './CollectionNameSanitizer'
+import {
+  safeCollectionAccessor,
+  escapeMongoShellString,
+} from './CollectionNameSanitizer'
 
 // ============================================================================
 // Type Definitions
@@ -41,7 +44,7 @@ export interface ExportFormat {
   description: string
   extension: string
   mimeType: string
-  category: 'data' | 'schema'  // 'data' = document export, 'schema' = type/schema generation
+  category: 'data' | 'schema' // 'data' = document export, 'schema' = type/schema generation
   supportsMultipleCollections: boolean
   formatter: (data: ExportData, options?: ExportOptions) => string
 }
@@ -98,7 +101,7 @@ export const MONGO_IMPORT_NDJSON: ExportFormat = {
     // Each document on separate line (NDJSON format)
     // safeEJSONStringify preserves Date, ObjectID, Binary with depth checks
     return docs.map(doc => safeEJSONStringify(doc)).join('\n')
-  }
+  },
 }
 
 /**
@@ -120,7 +123,7 @@ export const MONGO_IMPORT_ARRAY: ExportFormat = {
 
     // safeEJSONStringify with indent for readability and depth checks
     return safeEJSONStringify(docs, { indent: options.pretty ? 2 : 0 })
-  }
+  },
 }
 
 /**
@@ -142,7 +145,7 @@ export const MONGO_COMPASS: ExportFormat = {
 
     // Standard JSON.stringify (Compass handles EJSON patterns)
     return JSON.stringify(docs, null, 2)
-  }
+  },
 }
 
 /**
@@ -173,7 +176,7 @@ export const MONGO_SHELL: ExportFormat = {
     const safeCollection = safeCollectionAccessor(rawCollectionName)
 
     let script = `// MongoDB Shell Script\n`
-    script += `// Collection: ${rawCollectionName}\n`  // Comment is safe, use raw name
+    script += `// Collection: ${rawCollectionName}\n` // Comment is safe, use raw name
     script += `// Documents: ${docs.length}\n`
     script += `// Generated: ${new Date().toISOString()}\n\n`
 
@@ -196,7 +199,7 @@ export const MONGO_SHELL: ExportFormat = {
     script += `${safeCollection}.countDocuments(); // Should be ${docs.length}\n`
 
     return script
-  }
+  },
 }
 
 /**
@@ -238,7 +241,7 @@ export const TYPESCRIPT_INTERFACE: ExportFormat = {
     code += `}\n`
 
     return code
-  }
+  },
 }
 
 /**
@@ -286,7 +289,7 @@ export const MONGOOSE_SCHEMA: ExportFormat = {
     code += `module.exports = mongoose.model('${modelName}', ${modelName}Schema);\n`
 
     return code
-  }
+  },
 }
 
 /**
@@ -309,17 +312,19 @@ export const JSON_SCHEMA: ExportFormat = {
 
     const output: JSONSchemaResult = {
       $schema: 'https://json-schema.org/draft/2020-12/schema',
-      $id: `https://example.com/${data.collectionName || 'document'}.schema.json`,
+      $id: `https://example.com/${
+        data.collectionName || 'document'
+      }.schema.json`,
       title: pascalCase(data.collectionName || 'Document'),
       description: `Auto-generated from ${docs.length} document(s)`,
       type: 'object',
       additionalProperties: false, // Stricter validation per design spec
       properties: schema.properties,
-      required: schema.required
+      required: schema.required,
     }
 
     return JSON.stringify(output, null, options.pretty !== false ? 2 : 0)
-  }
+  },
 }
 
 /**
@@ -356,15 +361,17 @@ export const CSV: ExportFormat = {
     // CSV rows
     docs.forEach(doc => {
       const flattened = flattenObject(doc)
-      const row = headers.map(header => {
-        const value = flattened[header]
-        return escapeCSV(formatValueForCSV(value))
-      }).join(',')
+      const row = headers
+        .map(header => {
+          const value = flattened[header]
+          return escapeCSV(formatValueForCSV(value))
+        })
+        .join(',')
       csv += row + '\n'
     })
 
     return csv
-  }
+  },
 }
 
 // ============================================================================
@@ -429,16 +436,19 @@ function inferTypeScriptSchema(docs: any[]): TypeScriptSchema {
 
   return {
     properties: Object.fromEntries(
-      Object.entries(properties).sort(([a], [b]) => a.localeCompare(b))
+      Object.entries(properties).sort(([a], [b]) => a.localeCompare(b)),
     ),
-    required: required.sort()
+    required: required.sort(),
   }
 }
 
 /**
  * Convert SchemaNode to TypeScript type string
  */
-function schemaNodeToTypeScript(node: SchemaNode, totalDocs: number): TypeScriptProperty {
+function schemaNodeToTypeScript(
+  node: SchemaNode,
+  totalDocs: number,
+): TypeScriptProperty {
   const types = Array.from(node.types).filter(t => t !== 'null')
 
   // Handle null-only case
@@ -498,12 +508,17 @@ function schemaNodeToTypeScript(node: SchemaNode, totalDocs: number): TypeScript
           }
 
           // Generate union of shapes
-          const shapeTypes = shapes.map(shapeInfo => {
-            // CRITICAL: Use shapeInfo.count (documents with this shape), NOT arrayItemCount (total items)
-            // This ensures required fields are calculated correctly within each shape
-            const shapeProp = schemaNodeToTypeScript(shapeInfo.schema, shapeInfo.count)
-            return shapeProp.type
-          }).filter(t => t !== '{}')
+          const shapeTypes = shapes
+            .map(shapeInfo => {
+              // CRITICAL: Use shapeInfo.count (documents with this shape), NOT arrayItemCount (total items)
+              // This ensures required fields are calculated correctly within each shape
+              const shapeProp = schemaNodeToTypeScript(
+                shapeInfo.schema,
+                shapeInfo.count,
+              )
+              return shapeProp.type
+            })
+            .filter(t => t !== '{}')
 
           if (shapeTypes.length === 0) {
             return { type: 'any[]' }
@@ -544,17 +559,28 @@ function schemaNodeToTypeScript(node: SchemaNode, totalDocs: number): TypeScript
  */
 function mapTypeScriptType(semanticType: string): string {
   switch (semanticType) {
-    case 'ObjectId': return 'string'
-    case 'Date': return 'Date'
-    case 'Buffer': return 'Buffer'
-    case 'string': return 'string'
-    case 'number': return 'number'
-    case 'boolean': return 'boolean'
-    case 'null': return 'null'
-    case 'undefined': return 'undefined'
-    case 'array': return 'any[]'
-    case 'object': return 'Record<string, any>'
-    default: return 'any'
+    case 'ObjectId':
+      return 'string'
+    case 'Date':
+      return 'Date'
+    case 'Buffer':
+      return 'Buffer'
+    case 'string':
+      return 'string'
+    case 'number':
+      return 'number'
+    case 'boolean':
+      return 'boolean'
+    case 'null':
+      return 'null'
+    case 'undefined':
+      return 'undefined'
+    case 'array':
+      return 'any[]'
+    case 'object':
+      return 'Record<string, any>'
+    default:
+      return 'any'
   }
 }
 
@@ -604,16 +630,19 @@ function inferMongooseSchema(docs: any[]): MongooseSchema {
 
   return {
     properties: Object.fromEntries(
-      Object.entries(properties).sort(([a], [b]) => a.localeCompare(b))
+      Object.entries(properties).sort(([a], [b]) => a.localeCompare(b)),
     ),
-    required: required.sort()
+    required: required.sort(),
   }
 }
 
 /**
  * Convert SchemaNode to Mongoose schema type string
  */
-function schemaNodeToMongoose(node: SchemaNode, totalDocs: number): MongooseProperty {
+function schemaNodeToMongoose(
+  node: SchemaNode,
+  totalDocs: number,
+): MongooseProperty {
   const types = Array.from(node.types).filter(t => t !== 'null')
 
   // Handle null-only or mixed types
@@ -667,7 +696,10 @@ function schemaNodeToMongoose(node: SchemaNode, totalDocs: number): MongooseProp
 
         // Single shape - generate nested schema
         // Use shapeInfo.count (documents with this shape) not arrayItemCount (total items)
-        const shapeProp = schemaNodeToMongoose(shapes[0].schema, shapes[0].count || 0)
+        const shapeProp = schemaNodeToMongoose(
+          shapes[0].schema,
+          shapes[0].count || 0,
+        )
         return { type: `[${shapeProp.type}]` }
       }
 
@@ -688,15 +720,24 @@ function schemaNodeToMongoose(node: SchemaNode, totalDocs: number): MongooseProp
  */
 function mapMongooseType(semanticType: string): string {
   switch (semanticType) {
-    case 'ObjectId': return 'Schema.Types.ObjectId'
-    case 'Date': return 'Date'
-    case 'Buffer': return 'Buffer'
-    case 'string': return 'String'
-    case 'number': return 'Number'
-    case 'boolean': return 'Boolean'
-    case 'array': return 'Array'
-    case 'object': return 'Schema.Types.Mixed'
-    default: return 'Schema.Types.Mixed'
+    case 'ObjectId':
+      return 'Schema.Types.ObjectId'
+    case 'Date':
+      return 'Date'
+    case 'Buffer':
+      return 'Buffer'
+    case 'string':
+      return 'String'
+    case 'number':
+      return 'Number'
+    case 'boolean':
+      return 'Boolean'
+    case 'array':
+      return 'Array'
+    case 'object':
+      return 'Schema.Types.Mixed'
+    default:
+      return 'Schema.Types.Mixed'
   }
 }
 
@@ -754,9 +795,7 @@ interface JSONSchemaResult {
 interface JSONSchemaCollapsed extends Record<string, never> {}
 
 /** Array items schema (can be single type or union) */
-type JSONSchemaItems =
-  | { type: string }
-  | { anyOf: JSONSchemaProperty[] }
+type JSONSchemaItems = { type: string } | { anyOf: JSONSchemaProperty[] }
 
 /** Object/primitive/array type schema */
 interface JSONSchemaTyped {
@@ -809,21 +848,29 @@ function inferJSONSchema(docs: any[]): JSONSchema {
 
   // Sort keys for consistent output
   const sortedProperties: Record<string, JSONSchemaProperty> = {}
-  Object.keys(properties).sort().forEach(key => {
-    sortedProperties[key] = properties[key]
-  })
+  Object.keys(properties)
+    .sort()
+    .forEach(key => {
+      sortedProperties[key] = properties[key]
+    })
 
   return {
     properties: sortedProperties,
-    required: required.sort()
+    required: required.sort(),
   }
 }
 
 /**
  * Convert SchemaNode to JSON Schema format with depth limiting
+ * @param node - Schema node to convert
+ * @param totalDocs - Total number of documents
  * @param depth - Current nesting depth (used to cap at 5 levels)
  */
-function schemaNodeToJSONSchema(node: SchemaNode, totalDocs: number, depth: number = 1): JSONSchemaProperty {
+function schemaNodeToJSONSchema(
+  node: SchemaNode,
+  totalDocs: number,
+  depth: number = 1,
+): JSONSchemaProperty {
   const allTypes = Array.from(node.types)
   const types = allTypes.filter(t => t !== 'null')
 
@@ -852,7 +899,11 @@ function schemaNodeToJSONSchema(node: SchemaNode, totalDocs: number, depth: numb
       const required: string[] = []
 
       node.children.forEach((childNode, key) => {
-        properties[key] = schemaNodeToJSONSchema(childNode, totalDocs, depth + 1)
+        properties[key] = schemaNodeToJSONSchema(
+          childNode,
+          totalDocs,
+          depth + 1,
+        )
         if (childNode.count === totalDocs) {
           required.push(key)
         }
@@ -860,15 +911,17 @@ function schemaNodeToJSONSchema(node: SchemaNode, totalDocs: number, depth: numb
 
       // Sort keys
       const sortedProperties: Record<string, JSONSchemaProperty> = {}
-      Object.keys(properties).sort().forEach(key => {
-        sortedProperties[key] = properties[key]
-      })
+      Object.keys(properties)
+        .sort()
+        .forEach(key => {
+          sortedProperties[key] = properties[key]
+        })
 
       return {
         type: 'object',
         additionalProperties: false,
         properties: sortedProperties,
-        required: required.sort()
+        required: required.sort(),
       }
     }
 
@@ -894,15 +947,21 @@ function schemaNodeToJSONSchema(node: SchemaNode, totalDocs: number, depth: numb
           }
 
           // Convert each shape to JSON Schema, using shapeInfo.count (not arrayItemCount)
-          const shapeSchemas = shapes.map(shapeInfo => {
-            const schema = schemaNodeToJSONSchema(shapeInfo.schema, shapeInfo.count || 0, depth + 1)
+          const shapeSchemas = shapes
+            .map(shapeInfo => {
+              const schema = schemaNodeToJSONSchema(
+                shapeInfo.schema,
+                shapeInfo.count || 0,
+                depth + 1,
+              )
 
-            // If collapsed (empty object), skip
-            if (Object.keys(schema).length === 0) {
-              return null
-            }
-            return schema
-          }).filter(s => s !== null)
+              // If collapsed (empty object), skip
+              if (Object.keys(schema).length === 0) {
+                return null
+              }
+              return schema
+            })
+            .filter(s => s !== null)
 
           if (shapeSchemas.length === 0) {
             return result
@@ -910,7 +969,7 @@ function schemaNodeToJSONSchema(node: SchemaNode, totalDocs: number, depth: numb
 
           // Always use anyOf for objects (test convention)
           result.items = {
-            anyOf: shapeSchemas
+            anyOf: shapeSchemas,
           }
           return result
         }
@@ -921,7 +980,7 @@ function schemaNodeToJSONSchema(node: SchemaNode, totalDocs: number, depth: numb
         } else {
           // Mixed primitive types
           result.items = {
-            anyOf: itemTypes.sort().map(t => ({ type: t }))
+            anyOf: itemTypes.sort().map(t => ({ type: t })),
           }
         }
       }
@@ -935,10 +994,15 @@ function schemaNodeToJSONSchema(node: SchemaNode, totalDocs: number, depth: numb
 
   // Multiple types - use anyOf
   return {
-    anyOf: types.sort().map(t => ({ type: t }))
+    anyOf: types.sort().map(t => ({ type: t })),
   }
 }
 
+/**
+ * Detect JSON Schema type for a value (supports EJSON types)
+ * @param value - Value to detect type for
+ * @returns JSON Schema type string (string, number, integer, boolean, array, object, null)
+ */
 function detectJSONSchemaType(value: any): string {
   if (value === null) return 'null'
 
@@ -984,10 +1048,15 @@ function detectJSONSchemaType(value: any): string {
  *
  * @param value - Value to stringify
  * @param options - EJSON stringify options
+ * @param options.indent - Number of spaces for indentation
  * @param maxDepth - Maximum nesting depth (default: 50)
  * @returns Stringified value or error placeholder
  */
-function safeEJSONStringify(value: any, options?: { indent?: number }, maxDepth = 50): string {
+function safeEJSONStringify(
+  value: any,
+  options?: { indent?: number },
+  maxDepth = 50,
+): string {
   try {
     // Check depth to prevent stack overflow
     const checkDepth = (obj: any, depth = 0): number => {
@@ -1034,33 +1103,60 @@ function safeEJSONStringify(value: any, options?: { indent?: number }, maxDepth 
  * isEJSONDate({$date: 123, foo: "bar"}) // false - literal object
  */
 function isEJSONObjectId(value: any): boolean {
-  return value &&
-         typeof value === 'object' &&
-         Object.keys(value).length === 1 &&
-         typeof value.$oid === 'string' &&
-         /^[a-fA-F0-9]{24}$/.test(value.$oid)
+  return (
+    value &&
+    typeof value === 'object' &&
+    Object.keys(value).length === 1 &&
+    typeof value.$oid === 'string' &&
+    /^[a-fA-F0-9]{24}$/.test(value.$oid)
+  )
 }
 
+/**
+ * Check if value is a valid EJSON Date object
+ * @param value - Value to check
+ * @returns True if value is {$date: string|number} with exactly one key
+ */
 function isEJSONDate(value: any): boolean {
-  return value &&
-         typeof value === 'object' &&
-         Object.keys(value).length === 1 &&
-         Object.prototype.hasOwnProperty.call(value, '$date') &&
-         (typeof value.$date === 'string' || typeof value.$date === 'number')
+  return (
+    value &&
+    typeof value === 'object' &&
+    Object.keys(value).length === 1 &&
+    Object.prototype.hasOwnProperty.call(value, '$date') &&
+    (typeof value.$date === 'string' || typeof value.$date === 'number')
+  )
 }
 
+/**
+ * Check if value is a valid EJSON Binary object
+ * @param value - Value to check
+ * @returns True if value is {$binary: string} with exactly one key
+ */
 function isEJSONBinary(value: any): boolean {
-  return value &&
-         typeof value === 'object' &&
-         Object.keys(value).length === 1 &&
-         typeof value.$binary === 'string'
+  return (
+    value &&
+    typeof value === 'object' &&
+    Object.keys(value).length === 1 &&
+    typeof value.$binary === 'string'
+  )
 }
 
 // ============================================================================
 // MongoDB Shell Literal Conversion
 // ============================================================================
 
-function convertToMongoShellLiteral(value: any, indent: number, seen: WeakSet<object> = new WeakSet()): string {
+/**
+ * Convert value to MongoDB shell literal format with circular reference detection
+ * @param value - Value to convert
+ * @param indent - Current indentation level
+ * @param seen - WeakSet for circular reference tracking
+ * @returns MongoDB shell-compatible literal string
+ */
+function convertToMongoShellLiteral(
+  value: any,
+  indent: number,
+  seen: WeakSet<object> = new WeakSet(),
+): string {
   const spaces = '  '.repeat(indent)
 
   if (value === null || value === undefined) {
@@ -1080,7 +1176,8 @@ function convertToMongoShellLiteral(value: any, indent: number, seen: WeakSet<ob
     // Date constructor handles both automatically
     const date = new Date(value.$date)
     // Check for invalid date and provide a safe fallback
-    if (isNaN(date.getTime())) return `null /* Invalid EJSON date: ${JSON.stringify(value)} */`
+    if (isNaN(date.getTime()))
+      return `null /* Invalid EJSON date: ${JSON.stringify(value)} */`
     return `ISODate("${date.toISOString()}")`
   }
 
@@ -1118,7 +1215,8 @@ function convertToMongoShellLiteral(value: any, indent: number, seen: WeakSet<ob
 
     let result = '[\n'
     value.forEach((item, i) => {
-      result += spaces + '  ' + convertToMongoShellLiteral(item, indent + 1, seen)
+      result +=
+        spaces + '  ' + convertToMongoShellLiteral(item, indent + 1, seen)
       if (i < value.length - 1) result += ','
       result += '\n'
     })
@@ -1134,7 +1232,11 @@ function convertToMongoShellLiteral(value: any, indent: number, seen: WeakSet<ob
 
     let result = '{\n'
     entries.forEach(([key, val], i) => {
-      result += spaces + '  ' + `${key}: ` + convertToMongoShellLiteral(val, indent + 1, seen)
+      result +=
+        spaces +
+        '  ' +
+        `${key}: ` +
+        convertToMongoShellLiteral(val, indent + 1, seen)
       if (i < entries.length - 1) result += ','
       result += '\n'
     })
@@ -1208,7 +1310,7 @@ function buildSchemaTree(docs: any[], totalDocs: number): SchemaNode {
   const root: SchemaNode = {
     types: new Set(['object']),
     count: totalDocs,
-    children: new Map()
+    children: new Map(),
   }
 
   // Map phase: Analyze each document
@@ -1267,7 +1369,7 @@ function getObjectSignature(obj: any): string {
 function analyzeObject(
   obj: any,
   schema: Map<string, SchemaNode>,
-  totalDocs: number
+  totalDocs: number,
 ): void {
   Object.entries(obj).forEach(([key, value]) => {
     // Get or create schema node for this field
@@ -1278,7 +1380,7 @@ function analyzeObject(
         children: undefined,
         arrayItemTypes: undefined,
         arrayItemShapes: undefined,
-        arrayItemCount: undefined
+        arrayItemCount: undefined,
       })
     }
 
@@ -1288,14 +1390,18 @@ function analyzeObject(
     // Detect type and update node
     const detectedType = detectPrimitiveType(value)
 
-    if (detectedType === 'object' && value && typeof value === 'object' && !Array.isArray(value)) {
+    if (
+      detectedType === 'object' &&
+      value &&
+      typeof value === 'object' &&
+      !Array.isArray(value)
+    ) {
       // Nested object - recurse
       node.types.add('object')
       if (!node.children) {
         node.children = new Map()
       }
       analyzeObject(value, node.children, totalDocs)
-
     } else if (detectedType === 'array' && Array.isArray(value)) {
       // Array - analyze item types and track distinct object shapes
       node.types.add('array')
@@ -1320,9 +1426,9 @@ function analyzeObject(
               schema: {
                 types: new Set(['object']),
                 count: 0,
-                children: new Map()
+                children: new Map(),
               },
-              count: 0
+              count: 0,
             })
           }
 
@@ -1334,7 +1440,6 @@ function analyzeObject(
           analyzeObject(item, shapeInfo.schema.children!, shapeInfo.count)
         }
       })
-
     } else {
       // Primitive, EJSON, or Date instance
       node.types.add(detectedType)
@@ -1414,12 +1519,14 @@ export function flattenObject(obj: any, prefix = ''): Record<string, any> {
 
     // Check if nested object (not EJSON, not array, not Date)
     // PR REVIEW IMPLEMENTED: Use helper functions with Object.keys().length === 1 check
-    const isNestedObject = value && typeof value === 'object' &&
-                          !Array.isArray(value) &&
-                          !(value instanceof Date) &&
-                          !isEJSONObjectId(value) &&
-                          !isEJSONDate(value) &&
-                          !isEJSONBinary(value)
+    const isNestedObject =
+      value &&
+      typeof value === 'object' &&
+      !Array.isArray(value) &&
+      !(value instanceof Date) &&
+      !isEJSONObjectId(value) &&
+      !isEJSONDate(value) &&
+      !isEJSONBinary(value)
 
     if (isNestedObject) {
       Object.assign(flattened, flattenObject(value, newKey))
@@ -1525,7 +1632,7 @@ function formatValueForCSV(value: any): string {
 export function inferSchema(
   docs: any[],
   onProgress: (progress: number, message: string) => void,
-  signal: AbortSignal
+  signal: AbortSignal,
 ): JSONSchemaResult {
   // Check abort
   if (signal?.aborted) {
@@ -1548,7 +1655,7 @@ export function inferSchema(
     additionalProperties: false,
     type: 'object',
     properties,
-    required
+    required,
   }
 }
 

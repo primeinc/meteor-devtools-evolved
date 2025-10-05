@@ -21,7 +21,10 @@ function getEJSON(): any | undefined {
 function logSerializationError(e: any, context: 'EJSON' | 'JSON') {
   if (e && typeof e === 'object') {
     if (e.name === 'TypeError' && /circular/i.test(e.message)) {
-      logger.warn(`${context}.stringify failed due to circular reference:`, e.message)
+      logger.warn(
+        `${context}.stringify failed due to circular reference:`,
+        e.message,
+      )
     } else if (e.name === 'TypeError') {
       logger.warn(`${context}.stringify TypeError:`, e.message)
     } else {
@@ -52,6 +55,11 @@ function cloneDeepWithEJSON(obj: any) {
   const EJSON = getEJSON()
 
   if (EJSON) {
+    // PR REVIEW IMPLEMENTED: Log which location EJSON was found for debugging
+    logger.debug(
+      'EJSON found at:',
+      (window as any).EJSON ? 'window.EJSON' : 'window.Package.ejson.EJSON',
+    )
     try {
       // Serialize with EJSON, then deserialize back to get cloned object with EJSON types
       const serialized = EJSON.stringify(obj)
@@ -72,7 +80,7 @@ function cloneDeepWithEJSON(obj: any) {
     logger.warn(
       'EJSON not available - Date/ObjectId/Binary exports may lose type information.',
       'Checked locations: window.EJSON and window.Package.ejson.EJSON.',
-      'Try refreshing the page or waiting for Meteor to fully load.'
+      'Try refreshing the page or waiting for Meteor to fully load.',
     )
   }
 
@@ -87,6 +95,12 @@ function cloneDeepWithEJSON(obj: any) {
   }
 }
 
+/**
+ * Checks if a value is an array.
+ *
+ * @param obj - The value to check
+ * @returns True if the value is an array
+ */
 function isArray(obj: any) {
   return Array.isArray(obj)
 }
@@ -141,9 +155,11 @@ const cleanup = (object: any) => {
       }
 
       // Handle other non-plain objects (excluding EJSON types)
-      if (clonedObject[key].constructor.name !== 'Object' &&
-          !clonedObject[key].$date &&
-          !clonedObject[key].$binary) {
+      if (
+        clonedObject[key].constructor.name !== 'Object' &&
+        !clonedObject[key].$date &&
+        !clonedObject[key].$binary
+      ) {
         if (typeof clonedObject[key].toString === 'function') {
           clonedObject[key] = `[Object::${
             clonedObject[key].constructor.name
@@ -174,7 +190,9 @@ const getCollections = (requestPayload?: object) => {
   const collections = Meteor.connection._mongo_livedata_collections
 
   if (!collections) {
-    logger.warn('Collections not initialized in the client yet. Possibly forgotten to be imported.')
+    logger.warn(
+      'Collections not initialized in the client yet. Possibly forgotten to be imported.',
+    )
     return
   }
 

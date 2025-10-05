@@ -126,11 +126,15 @@ describe('MongoExportFormats - EJSON Handling', () => {
       expect(parsed[0]._id).toBe('507f1f77bcf86cd799439011')
       // EJSON.stringify may wrap $date/$binary in $escape for serialization safety
       const createdAt = parsed[0].createdAt
-      const actualDate = createdAt.$escape ? createdAt.$escape.$date : createdAt.$date
+      const actualDate = createdAt.$escape
+        ? createdAt.$escape.$date
+        : createdAt.$date
       expect(actualDate).toBe(testDate1.getTime())
 
       const avatar = parsed[0].avatar
-      const actualBinary = avatar.$escape ? avatar.$escape.$binary : avatar.$binary
+      const actualBinary = avatar.$escape
+        ? avatar.$escape.$binary
+        : avatar.$binary
       expect(actualBinary).toBe('SGVsbG8gV29ybGQ=')
     })
   })
@@ -220,7 +224,9 @@ describe('MongoExportFormats - EJSON Handling', () => {
       expect(parsed[0]._id).toBe('507f1f77bcf86cd799439011')
       // EJSON.stringify may wrap $date in $escape
       const createdAt = parsed[0].createdAt
-      const actualDate = createdAt.$escape ? createdAt.$escape.$date : createdAt.$date
+      const actualDate = createdAt.$escape
+        ? createdAt.$escape.$date
+        : createdAt.$date
       expect(actualDate).toBe(testDate1.getTime())
     })
   })
@@ -290,7 +296,6 @@ describe('MongoExportFormats - EJSON Handling', () => {
 
       expect(result).toContain('createdAt: Date')
     })
-
 
     it('should correctly generate nested interfaces for nested objects', () => {
       const nestedDocs = [
@@ -439,14 +444,20 @@ describe('MongoExportFormats - _id Type Variety', () => {
 
   it('should handle string _id (Meteor default)', () => {
     const docs = [{ _id: 'abc123', name: 'Test' }]
-    const result = JSON_SCHEMA.formatter({ documents: docs, collectionName: 'test' })
+    const result = JSON_SCHEMA.formatter({
+      documents: docs,
+      collectionName: 'test',
+    })
     const schema = JSON.parse(result)
     expect(schema.properties._id.type).toBe('string')
   })
 
   it('should handle ObjectId _id (EJSON format)', () => {
     const docs = [{ _id: { $oid: '507f1f77bcf86cd799439011' }, name: 'Test' }]
-    const result = JSON_SCHEMA.formatter({ documents: docs, collectionName: 'test' })
+    const result = JSON_SCHEMA.formatter({
+      documents: docs,
+      collectionName: 'test',
+    })
     const schema = JSON.parse(result)
     // ObjectId detected from EJSON
     expect(schema.properties._id).toBeDefined()
@@ -454,7 +465,10 @@ describe('MongoExportFormats - _id Type Variety', () => {
 
   it('should handle numeric _id (valid MongoDB)', () => {
     const docs = [{ _id: 12345, name: 'Test' }]
-    const result = JSON_SCHEMA.formatter({ documents: docs, collectionName: 'test' })
+    const result = JSON_SCHEMA.formatter({
+      documents: docs,
+      collectionName: 'test',
+    })
     const schema = JSON.parse(result)
     expect(schema.properties._id.type).toBe('number')
   })
@@ -464,7 +478,10 @@ describe('MongoExportFormats - _id Type Variety', () => {
       { _id: 'string-id', name: 'Test 1' },
       { _id: 42, name: 'Test 2' },
     ]
-    const result = JSON_SCHEMA.formatter({ documents: docs, collectionName: 'test' })
+    const result = JSON_SCHEMA.formatter({
+      documents: docs,
+      collectionName: 'test',
+    })
     const schema = JSON.parse(result)
     // Should produce anyOf for mixed types
     expect(schema.properties._id.anyOf).toBeDefined()
@@ -472,19 +489,28 @@ describe('MongoExportFormats - _id Type Variety', () => {
 
   it('TypeScript should map ObjectId to string', () => {
     const docs = [{ _id: { $oid: '507f1f77bcf86cd799439011' }, name: 'Test' }]
-    const result = TYPESCRIPT_INTERFACE.formatter({ documents: docs, collectionName: 'test' })
+    const result = TYPESCRIPT_INTERFACE.formatter({
+      documents: docs,
+      collectionName: 'test',
+    })
     expect(result).toContain('_id: string') // TS has no ObjectId type
   })
 
   it('Mongoose should map ObjectId to Schema.Types.ObjectId', () => {
     const docs = [{ _id: { $oid: '507f1f77bcf86cd799439011' }, name: 'Test' }]
-    const result = MONGOOSE_SCHEMA.formatter({ documents: docs, collectionName: 'test' })
+    const result = MONGOOSE_SCHEMA.formatter({
+      documents: docs,
+      collectionName: 'test',
+    })
     expect(result).toContain('Schema.Types.ObjectId')
   })
 
   it('Mongoose should map string _id to String', () => {
     const docs = [{ _id: 'meteor-string-id', name: 'Test' }]
-    const result = MONGOOSE_SCHEMA.formatter({ documents: docs, collectionName: 'test' })
+    const result = MONGOOSE_SCHEMA.formatter({
+      documents: docs,
+      collectionName: 'test',
+    })
     expect(result).toContain('type: String')
     expect(result).not.toContain('Schema.Types.ObjectId')
   })
@@ -616,11 +642,7 @@ describe('MongoExportFormats - Category Field', () => {
   })
 
   it('should have category "schema" for schema generation formats', () => {
-    const schemaFormats = [
-      TYPESCRIPT_INTERFACE,
-      MONGOOSE_SCHEMA,
-      JSON_SCHEMA,
-    ]
+    const schemaFormats = [TYPESCRIPT_INTERFACE, MONGOOSE_SCHEMA, JSON_SCHEMA]
 
     schemaFormats.forEach(format => {
       expect(format.category).toBe('schema')
@@ -654,7 +676,9 @@ describe('MongoExportFormats - EJSON Validation (PR #21)', () => {
     })
 
     it('MONGO_SHELL: should NOT convert multi-key $oid object to ObjectId', () => {
-      const docs = [{ multiKey: { $oid: '507f1f77bcf86cd799439011', foo: 'bar' } }]
+      const docs = [
+        { multiKey: { $oid: '507f1f77bcf86cd799439011', foo: 'bar' } },
+      ]
       const result = MONGO_SHELL.formatter({
         documents: docs,
         collectionName: 'test',

@@ -27,35 +27,90 @@ const logger = createLogger('Export')
 
 const CHUNK_SIZE = 500
 
+/**
+ * Yield control to event loop (zero-delay setTimeout)
+ * @returns Promise that resolves on next tick
+ */
 function sleep0(): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, 0))
 }
 
+/**
+ * Check if running in DevTools panel context
+ * @returns True if in DevTools panel (chrome-extension:// with devtools reference)
+ */
 function inDevToolsPanel(): boolean {
   // devtools pages use a chrome-extension:// URL but include "devtools" resources
-  return location.href.startsWith('chrome-extension://') && /devtools/i.test(document.referrer + ' ' + location.href)
+  return (
+    location.href.startsWith('chrome-extension://') &&
+    /devtools/i.test(document.referrer + ' ' + location.href)
+  )
 }
 
+/**
+ * Download blob using anchor element click (standard web context)
+ * @param blob - Blob to download
+ * @param filename - Download filename
+ */
 async function tryAnchorDownload(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
   try {
     const a = document.createElement('a')
-    a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove()
-  } finally { URL.revokeObjectURL(url) }
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+  } finally {
+    URL.revokeObjectURL(url)
+  }
 }
 
-async function downloadViaRelay(blob: Blob, filename: string, mime: string, signal: AbortSignal, onProgress:(p:number)=>void) {
+/**
+ * Download blob via background script relay (DevTools panel context)
+ * @param blob - Blob to download
+ * @param filename - Download filename
+ * @param mime - MIME type
+ * @param signal - AbortSignal for cancellation
+ * @param onProgress - Progress callback (0-1)
+ */
+async function downloadViaRelay(
+  blob: Blob,
+  filename: string,
+  mime: string,
+  signal: AbortSignal,
+  onProgress: (p: number) => void,
+) {
   // Compute checksum for integrity verification
   const bytes = new Uint8Array(await blob.arrayBuffer())
   const { sha256Hex } = await import('@/Utils/Hash')
   const expectedHash = await sha256Hex(bytes)
-  logger.debug('Blob hash:', expectedHash, 'size:', bytes.byteLength, 'first 4 bytes:', Array.from(bytes.slice(0, 4)))
+  logger.debug(
+    'Blob hash:',
+    expectedHash,
+    'size:',
+    bytes.byteLength,
+    'first 4 bytes:',
+    Array.from(bytes.slice(0, 4)),
+  )
 
   const relay = new RelayClient()
   await relay.sendBlob(blob, filename, mime, expectedHash, signal, onProgress)
 }
 
-export async function saveBlob(blob: Blob, filename: string, signal: AbortSignal, onProgress:(p:number)=>void) {
+/**
+ * Save blob to disk using appropriate download method
+ * @param blob - Blob to save
+ * @param filename - Download filename
+ * @param signal - AbortSignal for cancellation
+ * @param onProgress - Progress callback (0-1)
+ */
+export async function saveBlob(
+  blob: Blob,
+  filename: string,
+  signal: AbortSignal,
+  onProgress: (p: number) => void,
+) {
   const mime = blob.type || 'application/octet-stream'
   const inPanel = inDevToolsPanel()
   const forceRelay = flags.export.useBackgroundRelay
@@ -65,10 +120,11 @@ export async function saveBlob(blob: Blob, filename: string, signal: AbortSignal
     mime,
     inPanel,
     forceRelay,
-    willUseRelay: forceRelay || inPanel
+    willUseRelay: forceRelay || inPanel,
   })
   const mustRelay = forceRelay || inPanel
-  if (mustRelay) return downloadViaRelay(blob, filename, mime, signal, onProgress)
+  if (mustRelay)
+    return downloadViaRelay(blob, filename, mime, signal, onProgress)
   return tryAnchorDownload(blob, filename)
 }
 
@@ -92,7 +148,9 @@ export const ExportService = {
     options: ExportOptions = {},
   ): Promise<void> {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-    const name = `${sanitizeFilename(collectionName)}_${format.key}_${timestamp}.${format.extension}`
+    const name = `${sanitizeFilename(collectionName)}_${
+      format.key
+    }_${timestamp}.${format.extension}`
 
     onProgress(0.05, `Generating ${format.name}...`)
 
@@ -112,14 +170,16 @@ export const ExportService = {
     // TODO: Re-evaluate ByteAssembler streaming if large exports become common use case
     const output = format.formatter(exportData, options)
 
-    onProgress(0.90, 'Creating file...')
+    onProgress(0.9, 'Creating file...')
 
     // Create blob with correct MIME type
     const blob = new Blob([output], { type: format.mimeType })
 
     onProgress(0.95, 'Downloading...')
 
-    await saveBlob(blob, name, signal, (p) => onProgress(0.95 + 0.04 * p, 'Downloading…'))
+    await saveBlob(blob, name, signal, p =>
+      onProgress(0.95 + 0.04 * p, 'Downloading…'),
+    )
   },
 
   /**
@@ -172,7 +232,9 @@ export const ExportService = {
     onProgress(0.98, 'Finalizing…')
 
     const blob = writer.toBlob()
-    await saveBlob(blob, name, signal, (p) => onProgress(0.95 + 0.04 * p, 'Downloading…'))
+    await saveBlob(blob, name, signal, p =>
+      onProgress(0.95 + 0.04 * p, 'Downloading…'),
+    )
   },
 
   /**
@@ -188,8 +250,17 @@ export const ExportService = {
     // Use new MongoExportFormats
     const format = ALL_FORMATS.find(f => f.key === 'json-schema')
     if (!format) {
-      throw new Error('Export format "json-schema" not found. This is a bug in the export system.')
+      throw new Error(
+        'Export format "json-schema" not found. This is a bug in the export system.',
+      )
     }
-    await this.exportCollection(format, collectionName, docs, onProgress, signal, { pretty: true })
+    await this.exportCollection(
+      format,
+      collectionName,
+      docs,
+      onProgress,
+      signal,
+      { pretty: true },
+    )
   },
 }

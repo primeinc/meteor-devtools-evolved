@@ -1,5 +1,10 @@
 // Immediate logging to verify inject script loads
-console.log('[Meteor DevTools] Inject.ts loaded at', location.href, 'Meteor exists:', typeof window.Meteor)
+console.log(
+  '[Meteor DevTools] Inject.ts loaded at',
+  location.href,
+  'Meteor exists:',
+  typeof window.Meteor,
+)
 
 import { DDPInjector } from '@/Injectors/DDPInjector'
 import {
@@ -124,6 +129,10 @@ export const Registry: IRegistry = {
   },
 }
 
+/**
+ * Injects all DevTools components into the Meteor application.
+ * Polls for Meteor object and initializes DDP/Minimongo injectors when found.
+ */
 export function injectAll() {
   if (!window.__meteor_devtools_evolved) {
     if (isFrame) return false
@@ -134,9 +143,12 @@ export function injectAll() {
         : 'Initializing on the main page...',
     )
 
-    let attempts = 500  // Increased from 100 to 500 (5 seconds total)
+    let attempts = 500 // Increased from 100 to 500 (5 seconds total)
     let interval = null
 
+    /**
+     * Attempts to inject DevTools components if Meteor is available.
+     */
     function inject() {
       --attempts
 
@@ -151,7 +163,7 @@ export function injectAll() {
           Registry.run.bind(Registry)
 
         warning(`Initialized. Attempts: ${500 - attempts}.`)
-        clearInterval(interval)  // Stop immediately after success
+        clearInterval(interval) // Stop immediately after success
         return
       }
 
@@ -165,7 +177,8 @@ export function injectAll() {
             DDPInjector()
             MinimongoInjector()
             MeteorAdapter()
-            window.__meteor_devtools_evolved_receiveMessage = Registry.run.bind(Registry)
+            window.__meteor_devtools_evolved_receiveMessage =
+              Registry.run.bind(Registry)
             warning(`Initialized (delayed retry).`)
           } else if (!window.Meteor) {
             warning(

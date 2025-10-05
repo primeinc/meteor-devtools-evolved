@@ -29,9 +29,9 @@ describe('CollectionNameSanitizer - Security Tests', () => {
 
       it('should use db.name for collections with underscores', () => {
         expect(safeCollectionAccessor('user_profiles')).toBe('db.user_profiles')
-        expect(safeCollectionAccessor('meteor_accounts_loginServiceConfiguration')).toBe(
-          'db.meteor_accounts_loginServiceConfiguration'
-        )
+        expect(
+          safeCollectionAccessor('meteor_accounts_loginServiceConfiguration'),
+        ).toBe('db.meteor_accounts_loginServiceConfiguration')
       })
     })
 
@@ -63,31 +63,31 @@ describe('CollectionNameSanitizer - Security Tests', () => {
 
       it('should handle collections with hyphens', () => {
         expect(safeCollectionAccessor('my-collection')).toBe(
-          'db.getCollection("my-collection")'
+          'db.getCollection("my-collection")',
         )
       })
 
       it('should handle collections with dots', () => {
         expect(safeCollectionAccessor('my.collection')).toBe(
-          'db.getCollection("my.collection")'
+          'db.getCollection("my.collection")',
         )
       })
 
       it('should handle collections with spaces', () => {
         expect(safeCollectionAccessor('user data')).toBe(
-          'db.getCollection("user data")'
+          'db.getCollection("user data")',
         )
       })
 
       it('should handle collections starting with numbers', () => {
         expect(safeCollectionAccessor('123users')).toBe(
-          'db.getCollection("123users")'
+          'db.getCollection("123users")',
         )
       })
 
       it('should prevent system prefix exploitation', () => {
         expect(safeCollectionAccessor('system.users')).toBe(
-          'db.getCollection("system.users")'
+          'db.getCollection("system.users")',
         )
         expect(safeCollectionAccessor('systemUsers')).toBe('db.systemUsers') // OK - just startsWith check
       })
@@ -99,7 +99,9 @@ describe('CollectionNameSanitizer - Security Tests', () => {
         const result = safeCollectionAccessor(malicious)
 
         // Should escape the quote
-        expect(result).toBe('db.getCollection("users\\"); db.dropDatabase(); //")')
+        expect(result).toBe(
+          'db.getCollection("users\\"); db.dropDatabase(); //")',
+        )
         expect(result).not.toContain('users");')
       })
 
@@ -129,7 +131,7 @@ describe('CollectionNameSanitizer - Security Tests', () => {
 
       it('should escape multiple quotes', () => {
         expect(escapeMongoShellString('"foo" and "bar"')).toBe(
-          '\\"foo\\" and \\"bar\\"'
+          '\\"foo\\" and \\"bar\\"',
         )
       })
     })
@@ -148,7 +150,7 @@ describe('CollectionNameSanitizer - Security Tests', () => {
 
       it('should escape multiple backslashes', () => {
         expect(escapeMongoShellString('C:\\\\path\\\\to\\\\file')).toBe(
-          'C:\\\\\\\\path\\\\\\\\to\\\\\\\\file'
+          'C:\\\\\\\\path\\\\\\\\to\\\\\\\\file',
         )
       })
     })
@@ -221,7 +223,7 @@ describe('CollectionNameSanitizer - Security Tests', () => {
       // When used in shell script:
       const shellScript = `${result}.insertOne({ name: "test" })`
       expect(shellScript).toBe(
-        'db.getCollection("users; db.dropDatabase(); //").insertOne({ name: "test" })'
+        'db.getCollection("users; db.dropDatabase(); //").insertOne({ name: "test" })',
       )
       expect(shellScript).not.toContain('db.users;')
     })
@@ -231,7 +233,9 @@ describe('CollectionNameSanitizer - Security Tests', () => {
       const result = safeCollectionAccessor(malicious)
 
       // Quote should be escaped
-      expect(result).toBe('db.getCollection("users\\"); db.dropDatabase(); //")')
+      expect(result).toBe(
+        'db.getCollection("users\\"); db.dropDatabase(); //")',
+      )
 
       // When used in shell script, the escaped quote prevents breaking out
       const shellScript = `${result}.insertOne({ name: "test" })`

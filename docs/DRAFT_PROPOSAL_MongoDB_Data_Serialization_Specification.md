@@ -164,7 +164,7 @@ JavaScript number type (IEEE 754 double) cannot represent full 64-bit integers w
 | Binary     | `{"$binary": "AQID"}`                 | `{"$binary": {"base64": "AQID", "subType": "00"}}` | Same                                |
 | RegExp     | `{"$regexp": "...", "$options": "..."}` | `{"$regularExpression": {...}}`                | Same                                  |
 | Int32      | `10`                                  | `{"$numberInt": "10"}`                           | `10` ✅                               |
-| Int64      | `9007199254740991` ⚠️                 | `{"$numberLong": "9007199254740992"}`            | `9007199254740992`                    |
+| Int64      | `9007199254740992` ⚠️                 | `{"$numberLong": "9007199254740992"}`            | `9007199254740992`                    |
 | Decimal128 | ❌ Not supported                      | `{"$numberDecimal": "123.45"}`                   | Same                                  |
 | Undefined  | `{"$undefined": true}`                | ❌ Not represented                               | ❌ Not represented                    |
 

@@ -11,6 +11,31 @@ module.exports = merge(require('@tstt/eslint-config/index.js'), {
         ignoreProperties: true,
       },
     ],
+    // Require JSDoc comments for exported functions
+    'require-jsdoc': [
+      'warn',
+      {
+        require: {
+          FunctionDeclaration: true,
+          MethodDefinition: false,
+          ClassDeclaration: false,
+          ArrowFunctionExpression: false,
+          FunctionExpression: false,
+        },
+      },
+    ],
+    // Validate JSDoc comments when present
+    'valid-jsdoc': [
+      'warn',
+      {
+        requireReturn: false,
+        requireParamDescription: true,
+        requireReturnDescription: false,
+        prefer: {
+          return: 'returns',
+        },
+      },
+    ],
   },
   globals: { Meteor: 'readonly', i18n: 'readonly' },
 })

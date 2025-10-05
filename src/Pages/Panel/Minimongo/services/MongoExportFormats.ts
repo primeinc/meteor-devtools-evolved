@@ -1224,12 +1224,34 @@ function flattenObject(obj: any, prefix = ''): Record<string, any> {
 
 /**
  * Convert string to PascalCase
+ *
+ * Ensures valid TypeScript/JavaScript identifier:
+ * - Cannot start with a number
+ * - Prefixes with underscore if needed
+ *
+ * @example
+ * pascalCase('users') → 'Users'
+ * pascalCase('my-collection') → 'MyCollection'
+ * pascalCase('123invalid') → '_123invalid'
+ * pascalCase('') → 'Document'
  */
 function pascalCase(str: string): string {
-  return str
+  const result = str
     .replace(/[^a-zA-Z0-9]+(.)/g, (_, chr) => chr.toUpperCase())
     .replace(/^(.)/, (_, chr) => chr.toUpperCase())
     .replace(/[^a-zA-Z0-9]/g, '')
+
+  // Handle empty string
+  if (!result) {
+    return 'Document'
+  }
+
+  // Prefix with underscore if starts with number (invalid identifier)
+  if (/^[0-9]/.test(result)) {
+    return `_${result}`
+  }
+
+  return result
 }
 
 /**

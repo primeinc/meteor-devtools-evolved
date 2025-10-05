@@ -502,3 +502,61 @@ describe('MongoExportFormats - Edge Cases', () => {
     })
   })
 })
+
+describe('MongoExportFormats - Invalid Identifier Handling', () => {
+  describe('TYPESCRIPT_INTERFACE with numeric collection names', () => {
+    it('should prefix interface name with underscore if collection starts with number', () => {
+      const docs = [{ _id: '1', name: 'Test' }]
+      const result = TYPESCRIPT_INTERFACE.formatter({
+        documents: docs,
+        collectionName: '123users',
+      })
+
+      expect(result).toContain('export interface _123users {')
+      expect(result).not.toContain('export interface 123users {')
+    })
+
+    it('should handle empty collection name', () => {
+      const docs = [{ _id: '1', name: 'Test' }]
+      const result = TYPESCRIPT_INTERFACE.formatter({
+        documents: docs,
+        collectionName: '',
+      })
+
+      expect(result).toContain('export interface Document {')
+    })
+
+    it('should handle collection names with special characters only', () => {
+      const docs = [{ _id: '1', name: 'Test' }]
+      const result = TYPESCRIPT_INTERFACE.formatter({
+        documents: docs,
+        collectionName: '---',
+      })
+
+      expect(result).toContain('export interface Document {')
+    })
+
+    it('should handle valid collection names normally', () => {
+      const docs = [{ _id: '1', name: 'Test' }]
+      const result = TYPESCRIPT_INTERFACE.formatter({
+        documents: docs,
+        collectionName: 'users',
+      })
+
+      expect(result).toContain('export interface Users {')
+    })
+  })
+
+  describe('MONGOOSE_SCHEMA with numeric collection names', () => {
+    it('should prefix model name with underscore if collection starts with number', () => {
+      const docs = [{ _id: '1', name: 'Test' }]
+      const result = MONGOOSE_SCHEMA.formatter({
+        documents: docs,
+        collectionName: '123users',
+      })
+
+      expect(result).toContain('const _123usersSchema = new mongoose.Schema')
+      expect(result).toContain("module.exports = mongoose.model('_123users'")
+    })
+  })
+})

@@ -72,6 +72,7 @@ export const ExportDialog = observer(function ExportDialog(
     // Generate preview using selected format
     const MAX_PREVIEW = 1024 * 1024 // 1MB
     let data = ''
+    let fullOutput = '' // Hoist to function scope for size calculation
 
     // For schema/type generation formats, show summary
     const isSchemaFormat = ['json-schema', 'typescript', 'mongoose'].includes(selectedFormat.key)
@@ -90,14 +91,15 @@ export const ExportDialog = observer(function ExportDialog(
       // For data formats, show actual preview
       try {
         const exportData = { documents: docs, collectionName }
-        const fullOutput = selectedFormat.formatter(exportData, { pretty: true })
+        fullOutput = selectedFormat.formatter(exportData, { pretty: true })
 
         if (fullOutput.length <= MAX_PREVIEW) {
           data = fullOutput
           setIsFullPreview(true)
         } else {
           data = fullOutput.substring(0, MAX_PREVIEW)
-          data += `\n\n... (preview truncated at 1MB, full export is ${(fullOutput.length / 1024).toFixed(1)} KB)`
+          const fullSizeKB = (new Blob([fullOutput]).size / 1024).toFixed(1)
+          data += `\n\n... (preview truncated at 1MB, full export is ${fullSizeKB} KB)`
           setIsFullPreview(false)
         }
       } catch (e: any) {
@@ -106,10 +108,17 @@ export const ExportDialog = observer(function ExportDialog(
       }
     }
 
-    // Calculate actual size
-    const sample = docs.slice(0, 200).map(d => JSON.stringify(d))
-    const avg = sample.length ? sample.reduce((a, s) => a + s.length, 0) / sample.length : 0
-    const bytes = Math.round(avg * docs.length)
+    // Calculate actual size (use real output for data formats, sample for schema formats)
+    let bytes: number
+    if (isSchemaFormat || !fullOutput) {
+      // For schema formats or if generation failed, estimate from sample
+      const sample = docs.slice(0, 200).map(d => JSON.stringify(d))
+      const avg = sample.length ? sample.reduce((a, s) => a + s.length, 0) / sample.length : 0
+      bytes = Math.round(avg * docs.length)
+    } else {
+      // For data formats, use actual generated output size
+      bytes = new Blob([fullOutput]).size
+    }
     const mb = Math.round(bytes / 1024 / 1024)
 
     if (mb > 250) {

@@ -179,7 +179,10 @@ export const ExportService = {
     signal: AbortSignal,
   ): Promise<void> {
     // Use new MongoExportFormats
-    const format = ALL_FORMATS.find(f => f.key === 'json-schema')!
+    const format = ALL_FORMATS.find(f => f.key === 'json-schema')
+    if (!format) {
+      throw new Error('Export format "json-schema" not found. This is a bug in the export system.')
+    }
     await this.exportCollection(format, collectionName, docs, onProgress, signal, { pretty: true })
   },
 }

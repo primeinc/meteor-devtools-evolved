@@ -11,22 +11,28 @@ const injectOutboundInterceptor = (callback: MessageCallback) => {
   Meteor.connection._stream.send = function (...args) {
     send.apply(this, args)
 
+    const byteSize = new TextEncoder().encode(args[0]).length
+
     callback({
       id: generateId(),
       content: args[0],
       isOutbound: true,
       timestamp: Date.now(),
+      byteSize,
     })
   }
 }
 
 const injectInboundInterceptor = (callback: MessageCallback) => {
   Meteor.connection._stream.on('message', (...args) => {
+    const byteSize = new TextEncoder().encode(args[0]).length
+
     callback({
       id: generateId(),
       content: args[0],
       isInbound: true,
       timestamp: Date.now(),
+      byteSize,
     })
   })
 }

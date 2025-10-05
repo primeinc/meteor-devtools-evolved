@@ -18,7 +18,17 @@ Place documentation here when:
 
 ## Contents
 
-### Data Flow Models
+### Codebase Architecture (Implementation Reality)
+
+- **[CODEBASE_INVENTORY.md](./CODEBASE_INVENTORY.md)** - Complete inventory of existing infrastructure
+  - 6 production panels with proven patterns
+  - 9 MobX stores with working correlation examples
+  - 7+ reusable UI components (Blueprint.js + styled-components)
+  - Complete message passing architecture (Registry, Bridge)
+  - **Last verified:** 2025-10-05 via 3-agent parallel scan
+  - **Status:** Living document - reflects actual codebase state
+
+### Data Flow Models (Conceptual)
 
 - **[Four-Source Data Truth Model](./four-source-data-truth-model.md)** - Mental model for Meteor data flow
   - Conceptual framework: DDP → Minimongo → Subscriptions → DOM

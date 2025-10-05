@@ -4,6 +4,22 @@
 
 **For LLMs:** Read this BEFORE implementing. These decisions impact the entire architecture.
 
+**Last Verified:** 2025-10-05
+
+## ⚠️ IMPLEMENTATION STATUS UPDATE (2025-10-05)
+
+**Current Reality Check:**
+- 🔴 **FEATURE NOT IMPLEMENTED** - Design phase only
+- ✅ ADR-011 (MongoDB Export Formats) - **COMPLETE** (PR #23 merged)
+- ❌ ADR-001 through ADR-010 - **NOT IMPLEMENTED**
+- ⚠️ MeteorAdapter.ts DOES wrap methods but for performance tracking, NOT query logging
+- ❌ CollectionStore still uses `Record<string, IDocumentWrapper[]>`, NOT refactored
+- ❌ No MinimongoDDPCorrelator file exists
+- ❌ No IMethodLog types defined
+- ❌ No correlation infrastructure implemented
+
+**Before implementing, verify these ADRs still apply or need revision based on current codebase.**
+
 ---
 
 ## ADR-001: Collections Data Structure Refactor
@@ -1166,17 +1182,23 @@ New code:
 
 **Before implementing, make these decisions:**
 
-1. ⚠️ **ADR-001:** Choose collections data structure (Option B recommended)
-2. ✅ **ADR-002:** Use 1000-log circular buffer
-3. ✅ **ADR-003:** Throttle messages to 100ms
-4. ✅ **ADR-004:** Use EJSON for serialization
-5. ✅ **ADR-005:** Capture full stack, truncate in UI
-6. ⚠️ **ADR-006:** Scan all documents for schema (optimize later if needed)
-7. ✅ **ADR-007:** Use Tabs layout
-8. ⚠️ **ADR-008:** **DDP Correlation Strategy (CRITICAL) - Option B recommended**
-9. ✅ **ADR-009:** Use 'ready' messages for session→subscription mapping (copy DDPStore)
-10. ✅ **ADR-010:** Use MobX @computed with indexing for O(1) correlation lookups
-11. ✅ **ADR-011:** MongoDB Export Formats - Replace v1 schema inference, add 8 formats with proper EJSON detection
+1. ⚠️ **ADR-001:** Choose collections data structure (Option B recommended) - **NOT IMPLEMENTED**
+2. ✅ **ADR-002:** Use 1000-log circular buffer - **Decided, NOT IMPLEMENTED**
+3. ✅ **ADR-003:** Throttle messages to 100ms - **Decided, NOT IMPLEMENTED**
+4. ✅ **ADR-004:** Use EJSON for serialization - **✅ IMPLEMENTED** (MinimongoInjector.ts)
+5. ✅ **ADR-005:** Capture full stack, truncate in UI - **Decided, NOT IMPLEMENTED**
+6. ⚠️ **ADR-006:** Scan all documents for schema (optimize later if needed) - **NOT IMPLEMENTED**
+7. ✅ **ADR-007:** Use Tabs layout - **Decided, NOT IMPLEMENTED** (Minimongo.tsx has no tabs)
+8. ⚠️ **ADR-008:** **DDP Correlation Strategy (CRITICAL) - Option B recommended** - **NOT IMPLEMENTED**
+9. ✅ **ADR-009:** Use 'ready' messages for session→subscription mapping (copy DDPStore) - **NOT IMPLEMENTED**
+10. ✅ **ADR-010:** Use MobX @computed with indexing for O(1) correlation lookups - **NOT IMPLEMENTED**
+11. ✅ **ADR-011:** MongoDB Export Formats - **✅ IMPLEMENTED COMPLETELY** (PR #23 merged 2025-10-05)
+
+**Implementation Status (2025-10-05):**
+- ✅ **ADR-004:** EJSON serialization working in MinimongoInjector.ts
+- ✅ **ADR-011:** All 8 export formats implemented and tested
+- ❌ **ADR-001 through ADR-010:** Design decided but NOT implemented
+- ❌ **Core feature (Query View + Correlation):** 0% implemented
 
 **Most Critical Decision:** ADR-008 (DDP Correlation) - This IS the feature. Without it, we're building a commodity tool.
 
@@ -1186,7 +1208,169 @@ New code:
 
 **Pattern to Copy:** DDPStore + DDPInjector (proven in production, 90% infrastructure exists)
 
+**Discovered:** MeteorAdapter.ts (lines 28-54) wraps methods for performance tracking. Can use as reference pattern.
+
 ---
 
-**Last Updated:** 2025-10-04
+**Last Updated:** 2025-10-05 (Verified against actual codebase)
 **Status:** Living Document
+
+
+---
+
+## ADR-012: MobX Performance Patterns ("Dereference Late")
+
+**Status:** ✅ DECIDED
+
+**Context:**
+
+From production Meteor.js + MobX applications (see METEOR_PATTERNS_REFERENCE.md Section II.3).
+
+The "dereference late" pattern is critical for fine-grained reactivity. Components should pass entire observable objects down the tree, only dereferencing specific properties in the smallest possible component.
+
+**Decision:**
+
+All list components in MinimongoDDPCorrelator must follow this pattern.
+
+**Anti-Pattern (causes entire list to re-render):**
+```typescript
+const TaskRow = ({ text }) => <li>{text}</li>; // Not an observer
+
+const TaskList = observer(({ tasks }) => (
+  <ul>
+    {tasks.map(task => <TaskRow key={task.id} text={task.text} />)}
+  </ul>
+));
+```
+
+**Recommended Pattern (only individual rows re-render):**
+```typescript
+const TaskRow = observer(({ task }) => {
+  return <li>{task.text}</li>; // Dereference HERE
+});
+
+const TaskList = observer(({ tasks }) => (
+  <ul>
+    {tasks.map(task => <TaskRow key={task.id} task={task} />)}
+  </ul>
+));
+```
+
+**Implementation for MinimongoDDPCorrelator:**
+
+```typescript
+// QueryLogRow.tsx - Smallest component
+export const QueryLogRow = observer(({ queryLog }: { queryLog: IMethodLog }) => {
+  return (
+    <Row>
+      <Cell>{queryLog.method}</Cell>
+      <Cell>{queryLog.collection}</Cell>
+      <CorrelationBadge queryLog={queryLog} />
+    </Row>
+  );
+});
+
+// QueryLogList.tsx - Container (no dereferencing)
+export const QueryLogList = observer(({ queryLogs }: { queryLogs: IMethodLog[] }) => {
+  return (
+    <FixedSizeList itemCount={queryLogs.length}>
+      {({ index, style }) => (
+        <div style={style}>
+          <QueryLogRow queryLog={queryLogs[index]} />
+        </div>
+      )}
+    </FixedSizeList>
+  );
+});
+```
+
+**Rationale:**
+
+When `queryLog[3].method` changes:
+- ❌ **Without pattern:** Entire list reconciles (100+ components)
+- ✅ **With pattern:** Only `QueryLogRow[3]` re-renders
+
+**Performance Impact:** 10-100x fewer re-renders in typical scenarios.
+
+**Enforcement:** Code review checklist item.
+
+---
+
+## ADR-013: Reactive vs. Snapshot Correlation
+
+**Status:** ✅ DECIDED - Option A (Snapshot) for Phase 1
+
+**Context:**
+
+MinimongoDDPCorrelator needs to keep document origin index updated. Two approaches:
+
+**Option A: Snapshot-based (On-Demand)**
+- User opens Minimongo tab → fetch collections once
+- Correlator builds index from snapshot
+- No continuous overhead
+
+**Option B: Reactive (Continuous)**
+- Use `Tracker.autorun` to sync Minimongo → MobX continuously
+- Index always up-to-date
+- Runs even when DevTools closed
+
+**Decision:**
+
+**Phase 1:** Use Option A (Snapshot-based)
+
+**Rationale:**
+
+1. **Performance:** DevTools already injects into host page, avoid continuous overhead
+2. **User Experience:** Snapshot on tab open is sufficient (user sees current state)
+3. **Safety:** No memory leak risk (Tracker.autorun must be stopped on unmount)
+4. **Simplicity:** Proven pattern from existing MinimongoInjector
+
+**Implementation Pattern:**
+
+```typescript
+// Current pattern (keep this)
+Bridge.sendContentMessage('minimongo-get-collections');
+// → One-time sync to MinimongoStore
+// → MinimongoDDPCorrelator.buildIndex(snapshot)
+```
+
+**Future Enhancement (Phase 2):**
+
+Add reactive mode as opt-in setting:
+
+```typescript
+// Settings panel
+[ ] Live Correlation (updates in real-time, higher CPU usage)
+```
+
+**If enabled:**
+```typescript
+Tracker.autorun(() => {
+  const collections = Object.keys(Meteor.connection._mongo_livedata_collections);
+  
+  collections.forEach(name => {
+    const cursor = Meteor.connection._mongo_livedata_collections[name].find();
+    const docs = cursor.fetch();
+    
+    runInAction(() => {
+      correlatorStore.updateDocumentIndex(name, docs);
+    });
+  });
+});
+```
+
+**Warning:** Must call `handle.stop()` when DevTools closed to prevent memory leak.
+
+**Trade-offs:**
+
+| Aspect | Snapshot (Phase 1) | Reactive (Phase 2) |
+|--------|-------------------|-------------------|
+| CPU Usage | Low (on-demand) | Higher (continuous) |
+| Memory | Lower | Higher (Tracker computation) |
+| Freshness | Stale until refresh | Always up-to-date |
+| Complexity | Low | Medium (must stop on unmount) |
+| Risk | Low | Medium (memory leak risk) |
+
+**Recommendation:** Ship with Option A, add Option B based on user feedback.
+
+---

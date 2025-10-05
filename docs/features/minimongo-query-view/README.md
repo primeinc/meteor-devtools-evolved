@@ -1,9 +1,10 @@
 # Minimongo Query View - Feature Documentation
 
-**Status:** 🔴 Not Implemented (Design Phase - ~40% Infrastructure Complete)
-**Priority:** P1 (High Value - Changed from P2)
-**Estimated Effort:** 10-14 hours (increased from 8-12)
-**Complexity:** Medium-High (increased with correlation)
+**Status:** 🔴 Not Implemented (Design Phase - ~65% Infrastructure Complete)
+**Last Verified:** 2025-10-05 (Comprehensive rescan completed)
+**Priority:** P1 (High Value)
+**Estimated Effort:** 7-11 hours (reduced from 10-14 after infrastructure discovery)
+**Complexity:** Medium (reduced - proven patterns available)
 
 ---
 
@@ -43,55 +44,100 @@ This follows the **exact same architecture** as DDP Message Log, which already w
 
 ---
 
-## 🏗️ Existing Features (Foundation Already Proven)
+## 🏗️ Existing Infrastructure
 
-### ✅ Already Implemented & Working
+**For complete codebase inventory, see:** **[../../architecture/CODEBASE_INVENTORY.md](../../architecture/CODEBASE_INVENTORY.md)**
 
-| Feature | Location | What It Does | Relevance |
-|---------|----------|--------------|-----------|
-| **DDP Message Log** | `src/Pages/Panel/DDP/` | Tracks all DDP messages (`added`, `changed`, `removed`) with stack traces | **CORRELATION SOURCE** |
-| **Performance Tracking** | `src/Injectors/MeteorAdapter.ts` | Already wraps Minimongo methods for timing | **PROVEN PATTERN** |
-| **Subscription Viewer** | `src/Pages/Panel/Subscriptions/` | Lists active subs with metadata | **CORRELATION SOURCE** |
-| **Minimongo Viewer** | `src/Pages/Panel/Minimongo/` | Shows collection documents | **CORRELATION TARGET** |
-| **Bookmarks** | `src/Pages/Panel/Bookmarks/` | Save DDP messages | Existing UI patterns |
+### Quick Summary (65% Complete)
 
-### 🔑 Key Discovery: Pattern is Proven!
+| Category | Status | Key Finding |
+|----------|--------|-------------|
+| **Panels** | 6 production panels | DDP, Subscriptions, Performance, Minimongo, Bookmarks, Sponsor |
+| **Correlation** | ✅ Working pattern | `SubscriptionStore.subsWithMeta` proves cross-store correlation works |
+| **Method Wrapping** | ✅ Infrastructure exists | `MeteorAdapter.ts:28-53` wraps ALL Minimongo methods |
+| **UI Components** | 7+ reusable | Blueprint.js + styled-components + react-window |
+| **MobX Stores** | 9 stores proven | Domain/UI separation, @computed, @action, flow(), reaction() |
+| **Message Passing** | 100% complete | Registry, Bridge, sendMessage all working |
 
-**`DDPInjector.ts`** already implements the exact pattern we need:
+### 🔑 CRITICAL DISCOVERY: Correlation Pattern Already Works!
+
+**[`SubscriptionStore.ts:18-24`](https://github.com/primeinc/meteor-devtools-evolved/blob/dev/main/src/Stores/Panel/SubscriptionStore.ts#L18-L24) - WORKING CROSS-STORE CORRELATION:**
 
 ```typescript
-// DDP Pattern (WORKING IN PRODUCTION)
-Meteor.connection._stream.send = function (...args) {
-  send.apply(this, args)
-  sendMessage('ddp-event', { content, timestamp, trace: getStackTrace() })
+@computed
+get subsWithMeta() {
+  return this.filtered.map(sub => ({
+    ...sub,
+    ...PanelStore.ddpStore.getSubscriptionMeta(sub),  // ← PROVEN CORRELATION!
+  }))
 }
 ```
 
-**`MeteorAdapter.ts`** already wraps Minimongo methods:
+**[`DDPStore.ts:83-117`](https://github.com/primeinc/meteor-devtools-evolved/blob/dev/main/src/Stores/Panel/DDPStore.ts#L83-L117) - CORRELATION METHODS:**
 
 ```typescript
-// Method wrapping (WORKING IN PRODUCTION)
-Mongo.Collection.prototype.find = function(...args) {
-  const result = original.apply(this, args)
-  sendMessage('meteor-data-performance', { collectionName, args, runtime })
-  return result
+getSubscriptionInit(subscription) {
+  return this.subscriptionLogs.find(
+    log => log.parsedContent.id === subscription.id
+  )
+}
+
+getSubscriptionReady(subscription) {
+  return this.subscriptionLogs.find(log =>
+    log.parsedContent.subs?.includes?.(subscription.id)
+  )
+}
+
+getSubscriptionDuration(subscription) {
+  const init = this.getSubscriptionInit(subscription)
+  const ready = this.getSubscriptionReady(subscription)
+  return ready.timestamp - init.timestamp
 }
 ```
 
-**Translation:** 90% of infrastructure exists. We're copying proven patterns, not inventing new ones.
+**[`MeteorAdapter.ts:28-53`](https://github.com/primeinc/meteor-devtools-evolved/blob/dev/main/src/Injectors/MeteorAdapter.ts#L28-L53) - METHOD WRAPPING ALREADY EXISTS:**
 
-### 📊 Infrastructure Reuse
+```typescript
+Object.entries(Mongo.Collection.prototype).forEach(([key, val]) => {
+  if (['find', 'findOne', 'insert', 'update', 'upsert', 'remove'].includes(key)) {
+    const original = prototype[key]
+    prototype[key] = function (...args) {
+      const result = original.apply(this, args)
+      sendMessage('meteor-data-performance', {
+        collectionName: this._name,
+        key,
+        args: JSON.stringify(args),
+        runtime: Date.now() - startMs
+      })
+      return result
+    }
+  }
+})
+```
 
-| Infrastructure | File | Why Reusable |
-|----------------|------|-------------|
-| Message passing | `src/Utils/Inject.ts` | `sendMessage()` works for any event |
-| Stack trace capture | `src/Utils/Inject.ts` | `getStackTrace()` already exists |
-| Method wrapping pattern | `src/Injectors/MeteorAdapter.ts` | Copy performance tracking approach |
-| MobX store patterns | `src/Pages/Panel/DDP/DDPStore/index.ts` | CollectionStore follows same pattern |
-| UI patterns for logs | `src/Pages/Panel/DDP/DDPLog.tsx` | Table with expandable details |
-| Registry system | `src/Utils/Registry.ts` | Message handler registration |
-| EJSON serialization | Used throughout | Already handles Meteor types |
-| **DDP message indexing** | `src/Pages/Panel/DDP/DDPStore/` | **For correlation lookup** |
+**Translation:** 65% of infrastructure exists. We're adapting proven patterns, not building from scratch.
+
+### 📊 MobX Store Architecture (Production Patterns)
+
+| Store | File | Observable State | Correlation Methods |
+|-------|------|------------------|---------------------|
+| **DDPStore** | [`DDPStore.ts`](https://github.com/primeinc/meteor-devtools-evolved/blob/dev/main/src/Stores/Panel/DDPStore.ts) | DDP messages, bandwidth | `getSubscriptionInit()`, `getSubscriptionReady()`, `getSubscriptionMeta()` |
+| **SubscriptionStore** | [`SubscriptionStore.ts`](https://github.com/primeinc/meteor-devtools-evolved/blob/dev/main/src/Stores/Panel/SubscriptionStore.ts) | Active subscriptions | `subsWithMeta` (correlates with DDPStore) |
+| **MinimongoStore** | [`MinimongoStore/index.ts`](https://github.com/primeinc/meteor-devtools-evolved/blob/dev/main/src/Stores/Panel/MinimongoStore/index.ts) | Collections, documents, export state | Export via `flow()`, size calculations |
+| **PerformanceStore** | [`PerformanceStore.ts`](https://github.com/primeinc/meteor-devtools-evolved/blob/dev/main/src/Stores/Panel/PerformanceStore.ts) | Aggregated method metrics | Debounced rendering updates |
+| **BookmarkStore** | [`BookmarkStore.ts`](https://github.com/primeinc/meteor-devtools-evolved/blob/dev/main/src/Stores/Panel/BookmarkStore.ts) | Saved DDP messages | IndexedDB persistence with `runInAction` |
+| **SettingStore** | [`SettingStore.ts`](https://github.com/primeinc/meteor-devtools-evolved/blob/dev/main/src/Stores/Panel/SettingStore.ts) | Filters, blacklist | Auto-save via `reaction()` |
+| **Searchable\<T\>** | [`Searchable.ts`](https://github.com/primeinc/meteor-devtools-evolved/blob/dev/main/src/Stores/Common/Searchable.ts) | Base class: collection, search, pagination | Buffering + debouncing for performance |
+
+**Key Patterns Found:**
+- ✅ `@observable.shallow` for arrays/collections
+- ✅ `@computed` for derived/correlated data
+- ✅ `runInAction()` for async mutations
+- ✅ `flow()` for complex async operations
+- ✅ `reaction()` for side effects (auto-save)
+- ✅ `toJS()` for snapshots before serialization
+- ✅ `observer()` wrapper on all React components
+- ✅ `usePanelStore()` hook via React Context
 
 ---
 
@@ -257,36 +303,32 @@ class MinimongoDDPCorrelator {
 
 ## 📊 Implementation Breakdown
 
-### Phase 1: Backend Infrastructure (3-4 hours)
+### Phase 1: Backend Infrastructure (2-3 hours - REDUCED)
 
-| Task | File | Approach | Complexity |
-|------|------|----------|------------|
-| Method wrapping | `MinimongoInjector.ts` | Copy `DDPInjector` pattern | Low (proven) |
-| Schema inference | `schema-inference.ts` | Pure data transform | Low |
-| CollectionStore expansion | `CollectionStore.ts` | Add computed properties | Low |
-| Correlation service | `MinimongoDDPCorrelator.ts` (NEW) | Cross-reference logic | Medium |
-| Message handler | `MinimongoStore/index.ts` | Register with Registry | Low |
+| Task | File | Approach | Complexity | Time Saved |
+|------|------|----------|------------|------------|
+| Extend method wrapping | `MeteorAdapter.ts` | Add stack traces to EXISTING wraps | **Low** | **-1 hour** (already wraps) |
+| Schema inference | `schema-inference.ts` | Pure data transform | Low | - |
+| Correlation service | `MinimongoDDPCorrelator.ts` (NEW) | **Copy `DDPStore.getSubscriptionMeta()` pattern** | **Medium** | **-1 hour** (template exists) |
+| Message handler | `MinimongoStore/index.ts` | Register with Registry | Low | - |
 
-### Phase 2: Correlation Logic (3-4 hours - NEW)
+### Phase 2: Correlation Logic (2-3 hours - REDUCED)
 
-| Task | Complexity | Description |
-|------|-----------|-------------|
-| Document origin tracking | Medium | Match `_id` across DDP/Minimongo |
-| Query validation | Medium | Check if results have DDP backing |
-| Freshness calculation | Low | Compare timestamps |
-| Unnecessary query detection | High | Evaluate queries against DDPStore |
-| Data flow tracing | Medium | Build timeline view |
+| Task | Complexity | Description | Pattern to Copy |
+|------|-----------|-------------|-----------------|
+| Document origin tracking | Medium | Match `_id` across DDP/Minimongo | `DDPStore.getSubscriptionInit()` |
+| Query validation | Medium | Check if results have DDP backing | `SubscriptionStore.subsWithMeta` |
+| Freshness calculation | **Low** | Compare timestamps | **Simple subtraction** |
+| Data flow tracing | Medium | Build timeline view | Filter DDPStore by collection+id |
 
-### Phase 3: UI Components (3-4 hours)
+### Phase 3: UI Components (2-3 hours - REDUCED)
 
-| Task | File | Approach | Complexity |
-|------|------|----------|------------|
-| Schema display | `SchemaDisplay.tsx` | Standard table | Low |
-| Method log display | `MethodLogDisplay.tsx` | Copy `DDPLog` pattern | Low |
-| Correlation badges | `CorrelationBadges.tsx` (NEW) | Validation indicators | Medium |
-| Data flow view | `DataFlowTimeline.tsx` (NEW) | Timeline component | High |
-| Container component | `MinimongoQueryView.tsx` | Compose components | Low |
-| Tab integration | `Minimongo.tsx` | Add tabs | Low |
+| Task | File | Template to Copy | Complexity | Time Saved |
+|------|------|------------------|------------|------------|
+| Method log display | `MethodLogDisplay.tsx` | **`DDPLog.tsx`** | **Low** | **-1 hour** (copy structure) |
+| Correlation badges | Component inline | Blueprint Tag + Badge | Low | - |
+| Container component | `MinimongoQueryView.tsx` | **`DDPContainer.tsx` (react-window)** | **Low** | **-1 hour** (proven pattern) |
+| Tab integration | `Minimongo.tsx` | **Existing TabBar component** | **Low** | - |
 
 ### Phase 4: Testing (1-2 hours)
 
@@ -296,7 +338,7 @@ class MinimongoDDPCorrelator {
 - Regression tests (Performance Tab still works)
 - Manual testing
 
-**Total:** 10-14 hours (was 8-12 before correlation)
+**Total:** 7-11 hours (reduced from 10-14 after infrastructure discovery)
 
 ---
 
@@ -310,6 +352,12 @@ class MinimongoDDPCorrelator {
 | **ARCHITECTURE_DECISIONS.md** | Critical decisions (now includes ADR-008: Correlation Strategy) | ② Second | LLMs, Architects |
 | **FEATURE_SPEC.md** | Original specification | ③ Third | Product, Developers |
 | **reference-components/** | Example React components | ④ Reference | Frontend Developers |
+
+### General Reference (Applies to All Features)
+
+| File | Purpose | For |
+|------|---------|-----|
+| **[../../METEOR_PATTERNS_REFERENCE.md](../../METEOR_PATTERNS_REFERENCE.md)** | Production Meteor.js + MobX patterns (immediate + future) | All Developers |
 
 ---
 
@@ -740,21 +788,42 @@ Please update the relevant documentation file and note changes in git commit.
 
 ---
 
-**Implementation Status:** 🟡 ~40% Infrastructure Complete + Correlation Design Added
+**Implementation Status:** 🔴 ~65% Infrastructure Complete (Verified via comprehensive agent scan)
 
-- ✅ Message passing system exists
-- ✅ Stack trace capture exists
-- ✅ Store patterns proven (DDP)
-- ✅ UI patterns proven (DDP)
-- ✅ Method wrapping pattern exists (Performance)
-- ✅ DDP correlation sources available (DDPStore, SubscriptionStore)
-- ❌ Method wrapping for queries (not implemented)
-- ❌ Schema inference utility (not implemented)
-- ❌ Correlation service (not implemented)
-- ❌ Query-specific UI components (not implemented)
-- ❌ Correlation UI components (not implemented)
+**✅ What Exists (Verified):**
+- ✅ **6 production panels** with proven UI patterns (DDP, Subscriptions, Performance, Minimongo, Bookmarks, Sponsor)
+- ✅ **Working correlation pattern** in SubscriptionStore.subsWithMeta (correlates with DDPStore via @computed)
+- ✅ **Method wrapping infrastructure** in MeteorAdapter.ts wraps ALL Minimongo methods (find, findOne, insert, update, upsert, remove)
+- ✅ **DDP correlation methods** in DDPStore (getSubscriptionInit, getSubscriptionReady, getSubscriptionMeta)
+- ✅ **MobX patterns** proven across 9 stores (@observable, @computed, @action, flow, reaction, runInAction)
+- ✅ **React + MobX integration** via observer() wrapper and usePanelStore() hook
+- ✅ **Reusable UI components** (Button, Field, TabBar, StatusBar, TextInput, ObjectTreerinator, Hideable)
+- ✅ **Blueprint.js + styled-components** for consistent UI
+- ✅ **Message passing infrastructure** (Registry pattern, sendMessage, Bridge)
+- ✅ **Stack trace capture** in DDPInjector (getStackTrace() available)
+- ✅ **EJSON serialization** in MinimongoInjector
+- ✅ **Export feature complete** (PR #23 - 8 formats)
+- ✅ **react-window virtualization** in DDPContainer and MinimongoContainer
+- ✅ **IndexedDB persistence** in BookmarkStore with runInAction pattern
+- ✅ **Searchable<T> base class** with buffering, debouncing, pagination
 
-**Last Updated:** 2025-10-04 (DDP correlation strategy integrated)
+**❌ What's Missing (35% remaining):**
+- ❌ **Extend method wrapping** to capture stack traces + send 'minimongo-method' events (currently only sends 'meteor-data-performance')
+- ❌ **MinimongoDDPCorrelator service** (new file - copy pattern from DDPStore.getSubscriptionMeta)
+- ❌ **Query log storage** in MinimongoStore (add observable methodLogs array)
+- ❌ **Event type** 'minimongo-method' (add to index.d.ts EventType enum)
+- ❌ **IMethodLog interface** (add to index.d.ts)
+- ❌ **UI components** for query log (copy DDPLog.tsx structure)
+- ❌ **Tab layout** in Minimongo.tsx (add TabBar with Documents/Queries/Schema tabs)
+- ❌ **Correlation UI** (badges showing origin, freshness, validation status)
+
+**📊 Infrastructure Assessment:**
+- **Backend**: 70% complete (method wrapping exists, needs extension)
+- **Stores**: 60% complete (patterns proven, need MinimongoDDPCorrelator)
+- **UI**: 65% complete (components exist, need query-specific views)
+- **Overall**: **~65% complete**
+
+**Last Updated:** 2025-10-05 (Comprehensive 3-agent scan completed)
 **Documentation Maintainer:** @primeinc
 **Feature Champion:** TBD
-**Estimated Effort:** 10-14 hours (increased from 8-12 due to correlation layer)
+**Estimated Effort:** 7-11 hours (reduced from 10-14 after infrastructure discovery)

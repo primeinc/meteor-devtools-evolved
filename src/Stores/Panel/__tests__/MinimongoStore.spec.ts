@@ -4,6 +4,25 @@
  * Tests for Minimongo collection management and operations
  */
 
+// Mock Logger
+jest.mock('@/Utils/Logger', () => ({
+  createLogger: jest.fn(() => ({
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  })),
+}))
+
+// Mock PanelStore to avoid circular dependency
+jest.mock('@/Stores/PanelStore', () => ({
+  PanelStore: {
+    settingStore: {
+      isQueryStackTraceEnabled: false,
+    },
+  },
+}))
+
 import { MinimongoStore } from '../MinimongoStore'
 
 // Mock pretty-bytes to avoid ESM issues

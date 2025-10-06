@@ -34,7 +34,12 @@ module.exports = merge(require('@tstt/eslint-config/index.js'), {
     'jsdoc/require-param-description': 'error',
     'jsdoc/require-returns-description': 'off',
     'jsdoc/check-param-names': 'error',
-    'jsdoc/check-tag-names': 'error',
+    'jsdoc/check-tag-names': [
+      'error',
+      {
+        definedTags: ['citation', 'source', 'standard'],
+      },
+    ],
     'jsdoc/check-types': 'error',
   },
   overrides: [

@@ -37,6 +37,15 @@ const Wrapper = styled.div`
   }
 `
 
+/**
+ *
+ */
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
+}
+
 export const Subscriptions: FunctionComponent<Props> = observer(
   ({ isVisible }) => {
     useInterval(() => isVisible && syncSubscriptions(), 5000)
@@ -60,6 +69,8 @@ export const Subscriptions: FunctionComponent<Props> = observer(
                 <th>Active</th>
                 <th>Ready</th>
                 <th>Duration</th>
+                <th>Initial Load</th>
+                <th>Update Rate</th>
               </tr>
             </thead>
             <tbody>
@@ -110,6 +121,20 @@ export const Subscriptions: FunctionComponent<Props> = observer(
                     </td>
                     <td>
                       <Tag minimal>{duration}</Tag>
+                    </td>
+                    <td>
+                      <Tag minimal>
+                        {subscription.initialDataLoadBytes
+                          ? formatBytes(subscription.initialDataLoadBytes)
+                          : '-'}
+                      </Tag>
+                    </td>
+                    <td>
+                      <Tag minimal>
+                        {subscription.updateRate
+                          ? `${subscription.updateRate.toFixed(1)}/min`
+                          : '-'}
+                      </Tag>
                     </td>
                   </tr>
                 )

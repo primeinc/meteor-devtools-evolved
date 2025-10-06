@@ -1,6 +1,25 @@
 import { usePanelStore } from '@/Stores/PanelStore'
 import { Icon, IconName, Tag, Tooltip } from '@blueprintjs/core'
 import React, { FunctionComponent } from 'react'
+import styled from 'styled-components'
+
+const RPCTimeline = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: #8a9ba8;
+  margin-left: 8px;
+
+  .arrow {
+    color: #5c7080;
+  }
+
+  .result-marker,
+  .ready-marker {
+    color: #48aff0;
+  }
+`
 
 const getTag = (icon: IconName, title: string) => (
   <Tooltip
@@ -42,6 +61,10 @@ export const DDPLogPreview: FunctionComponent<Partial<DDPLog>> = ({
   preview,
 }) => {
   const store = usePanelStore()
+  const latency =
+    parsedContent?.id && parsedContent?.msg === 'method'
+      ? store.ddpStore.getMethodLatency(parsedContent.id)
+      : null
 
   return (
     <>
@@ -59,6 +82,27 @@ export const DDPLogPreview: FunctionComponent<Partial<DDPLog>> = ({
           <code>{preview}</code>
         </small>
       </Tag>
+      {latency && (
+        <RPCTimeline>
+          <span className='method-start'>method</span>
+          <span className='arrow'>→</span>
+          <Tooltip content='Server computed result' position='top'>
+            <span className='result-marker'>
+              result ({latency.timeToResult.toFixed(0)}ms)
+            </span>
+          </Tooltip>
+          {latency.timeToReady && (
+            <>
+              <span className='arrow'>→</span>
+              <Tooltip content='All data side-effects sent' position='top'>
+                <span className='ready-marker'>
+                  ready ({latency.timeToReady.toFixed(0)}ms)
+                </span>
+              </Tooltip>
+            </>
+          )}
+        </RPCTimeline>
+      )}
     </>
   )
 }

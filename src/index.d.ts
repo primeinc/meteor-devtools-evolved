@@ -18,6 +18,7 @@ type MessageSource = 'meteor-devtools-evolved'
 type EventType =
   | 'ddp-event'
   | 'minimongo-get-collections'
+  | 'minimongo-method'
   | 'ddp-run-method'
   | 'console'
   | 'sync-subscriptions'
@@ -57,6 +58,9 @@ interface DDPLogContent {
   name?: string
   error?: DDPError
   subs?: string[]
+  methods?: string[]
+  fields?: Record<string, any>
+  params?: any[]
 }
 
 interface DDPLog {
@@ -74,6 +78,7 @@ interface DDPLog {
   host?: string
   filterType?: FilterType | null
   preview?: string
+  byteSize?: number
 }
 
 interface Bookmark {
@@ -239,6 +244,7 @@ interface ISettings {
   repositoryData: IGitHubRepository | null
   activeFilterBlacklist: string[]
   activeFilters: FilterTypeMap<boolean>
+  isQueryStackTraceEnabled: boolean
 }
 
 type ConsoleType = 'log' | 'info' | 'warn' | 'error'

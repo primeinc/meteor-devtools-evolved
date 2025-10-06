@@ -17,6 +17,8 @@ import { BridgeAdapter } from '@/Utils/BridgeAdapter'
 import { ExportService } from '@/Pages/Panel/Minimongo/services/ExportService'
 import { ExportFormatKey } from '@/Pages/Panel/Minimongo/services/MongoExportFormats'
 import { createLogger } from '@/Utils/Logger'
+import { MinimongoMethodLog } from './types'
+import { PanelStore } from '@/Stores/PanelStore'
 
 const logger = createLogger('MinimongoStore')
 
@@ -35,6 +37,9 @@ export class MinimongoStore {
   @observable isExportBusy = false
   @observable exportStatus = { progress: 0, message: '' }
   private exportSeq = 1
+
+  // Query logs (NEW)
+  @observable methodLogs: MinimongoMethodLog[] = []
 
   constructor() {
     makeObservable(this)
@@ -137,6 +142,36 @@ export class MinimongoStore {
   @action
   setNavigatorVisible(isVisible: boolean) {
     this.isNavigatorVisible = isVisible
+  }
+
+  @action
+  addMethodLog(log: MinimongoMethodLog) {
+    // Strip stack trace if feature is disabled in settings
+    // This provides performance optimization since stack traces are expensive
+    if (!PanelStore.settingStore?.isQueryStackTraceEnabled) {
+      log.stackTrace = undefined
+    }
+
+    this.methodLogs.push(log)
+
+    // Limit to 1000 entries (prevent memory leaks)
+    if (this.methodLogs.length > 1000) {
+      this.methodLogs.shift()
+    }
+  }
+
+  @computed
+  get findLogs() {
+    return this.methodLogs.filter(
+      log => log.method === 'find' || log.method === 'findOne',
+    )
+  }
+
+  @computed
+  get mutateLogs() {
+    return this.methodLogs.filter(log =>
+      ['insert', 'update', 'upsert', 'remove'].includes(log.method),
+    )
   }
 
   @action

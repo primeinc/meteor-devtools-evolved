@@ -1,0 +1,67 @@
+name: Test
+on:
+  push:
+    branches:
+      - development
+      - dev/**
+  pull_request:
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          cache: 'yarn'
+      - run: yarn install --frozen-lockfile
+      - run: yarn test:unit
+
+  e2e-tests:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    needs: unit-tests  # Fail fast if unit tests fail
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          cache: 'yarn'
+      - run: yarn install --frozen-lockfile
+
+      # Install Meteor for test app
+      - name: Install Meteor
+        run: curl https://install.meteor.com/ | sh
+
+      # Start Meteor test app in background
+      - name: Start Meteor test app
+        run: |
+          cd devapp
+          yarn install --frozen-lockfile
+          nohup yarn start > ../meteor.log 2>&1 &
+          cd ..
+
+      # Wait for Meteor to be ready
+      - name: Wait for Meteor
+        run: yarn wait:testapp
+        timeout-minutes: 5
+
+      # Run E2E tests
+      - run: yarn playwright install chromium
+      - run: yarn build:chrome
+      - name: Run Playwright Tests
+        run: xvfb-run --auto-servernum -- yarn playwright test
+
+      # Upload artifacts on failure
+      - name: Upload test artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: playwright-report
+          path: |
+            test-results/
+            playwright-report/
+            meteor.log
+          retention-days: 7

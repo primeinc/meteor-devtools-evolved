@@ -1,11 +1,13 @@
 import { PanelStoreProvider, usePanelStore } from '@/Stores/PanelStore'
 import { observer } from 'mobx-react-lite'
 import React, { FunctionComponent, useEffect, useRef } from 'react'
+import browser from 'webextension-polyfill'
 import { Bookmarks } from './Panel/Bookmarks/Bookmarks'
 import { DDP } from './Panel/DDP/DDP'
 import { DrawerJSON } from './Panel/DrawerJSON'
 import { DrawerStackTrace } from './Panel/DrawerStackTrace'
 import { Minimongo } from './Panel/Minimongo/Minimongo'
+import { QueryLog } from './Panel/QueryLog/QueryLog'
 import { Navigation } from './Panel/Navigation'
 import { Bridge } from '@/Bridge'
 import { PanelPage } from '@/Constants'
@@ -74,6 +76,13 @@ const PanelObserverComponent: FunctionComponent = observer(() => {
     analytics?.pageView().catch(console.error)
   }, [analytics])
 
+  // Send PANEL_READY signal for E2E tests
+  useEffect(() => {
+    browser.runtime.sendMessage({ type: 'PANEL_READY' }).catch(err => {
+      console.debug('PANEL_READY signal failed (expected if not in test):', err)
+    })
+  }, [])
+
   return (
     <Layout>
       <DrawerJSON
@@ -100,6 +109,7 @@ const PanelObserverComponent: FunctionComponent = observer(() => {
         <DDP isVisible={store.selectedTabId === PanelPage.DDP} />
         <Bookmarks isVisible={store.selectedTabId === PanelPage.BOOKMARKS} />
         <Minimongo isVisible={store.selectedTabId === PanelPage.MINIMONGO} />
+        <QueryLog isVisible={store.selectedTabId === PanelPage.QUERYLOG} />
         <Performance
           isVisible={store.selectedTabId === PanelPage.PERFORMANCE}
         />

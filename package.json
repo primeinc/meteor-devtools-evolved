@@ -12,6 +12,8 @@
   "scripts": {
     "setup": "cd devapp && yarn && cd ../ && yarn",
     "devapp": "cd devapp && yarn start",
+    "start:testapp": "cd devapp && yarn start",
+    "wait:testapp": "wait-on http://localhost:33000",
     "typecheck": "tsc --noEmit",
     "build:chrome": "webpack --config webpack/chrome.prod.js",
     "build:firefox": "webpack --config webpack/firefox.prod.js",
@@ -24,7 +26,12 @@
     "open:chrome": "yarn wait:chrome && web-ext run -t chromium --start-url \"http://localhost:2100\" --source-dir ./extension/chrome/ --browser-console",
     "clean": "rimraf extension/firefox extension/chrome",
     "lint": "eslint ./src --ext .js,.jsx,.ts,.tsx --cache .",
-    "test": "yarn build:chrome && jest",
+    "test:unit": "jest --runInBand --detectOpenHandles",
+    "test:e2e": "yarn build:chrome && playwright test",
+    "test:e2e:dev": "yarn build:chrome && playwright test --headed",
+    "pretest:e2e:with-app": "yarn build:chrome",
+    "test:e2e:with-app": "start-server-and-test start:testapp http://localhost:33000 test:e2e",
+    "test": "yarn test:unit && yarn test:e2e",
     "test:watch": "jest --watch"
   },
   "author": "Leonardo Venturini",
@@ -97,6 +104,9 @@
     "yarn": "1.22.18"
   },
   "devDependencies": {
+    "@playwright/test": "^1.55.1",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.0",
     "@types/jest": "^29.5.14",
     "@types/webextension-polyfill": "^0.9.0",
     "@typescript-eslint/eslint-plugin": "^5.62.0",
@@ -116,6 +126,7 @@
     "npm-run-all": "^4.1.5",
     "postcss": "^8.5.6",
     "prettier": "^2.8.8",
+    "start-server-and-test": "^2.1.2",
     "ts-jest": "^29.4.4",
     "wait-on": "^6.0.1",
     "web-ext": "^7.1.0",

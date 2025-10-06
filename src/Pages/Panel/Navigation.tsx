@@ -20,7 +20,7 @@ export const Navigation: FunctionComponent = observer(() => {
     setTimeout(() => {
       panelStore.settingStore.updateRepositoryData()
     }, REPO_DATA_FETCH_DELAY_MS)
-  }, [])
+  }, [panelStore.settingStore])
 
   const { repositoryData } = panelStore.settingStore
 
@@ -46,6 +46,11 @@ export const Navigation: FunctionComponent = observer(() => {
           data: null,
         })
       },
+    },
+    {
+      key: PanelPage.QUERYLOG,
+      content: 'Query Log',
+      icon: 'history',
     },
     {
       key: PanelPage.SUBSCRIPTIONS,

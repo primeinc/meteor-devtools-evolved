@@ -666,6 +666,12 @@ const tabListener = () => {
     sender,
     sendResponse,
   ) {
+    // Health check ping for smoke tests
+    if (request.type === 'PING') {
+      sendResponse({ type: 'PONG' })
+      return
+    }
+
     sendResponse({ foo: true })
 
     if (request.source !== 'meteor-devtools-evolved') return true

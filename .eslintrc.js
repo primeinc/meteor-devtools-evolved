@@ -3,6 +3,9 @@ const { merge } = require('lodash')
 module.exports = merge(require('@tstt/eslint-config/index.js'), {
   plugins: ['jsdoc', 'react-hooks'],
   rules: {
+    'prettier/prettier': ['error', { endOfLine: 'auto' }],
+    'react-hooks/exhaustive-deps': 'error',
+    'no-useless-catch': 0,
     'global-require': 0,
     '@typescript-eslint/no-var-requires': 0,
     '@typescript-eslint/no-extra-semi': 0, // Conflicts with prettier

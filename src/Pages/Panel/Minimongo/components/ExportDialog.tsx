@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { observer } from 'mobx-react-lite'
 import {
   Dialog,
@@ -43,7 +43,7 @@ export const ExportDialog = observer(function ExportDialog(
     }
   }, [])
 
-  const generatePreview = async () => {
+  const generatePreview = useCallback(async () => {
     // Gather documents from active collection or all collections
     let docs: any[]
     let collectionName: string
@@ -147,7 +147,7 @@ export const ExportDialog = observer(function ExportDialog(
     setPreviewData(data)
     setPreviewSize(bytes)
     setShowPreview(true)
-  }
+  }, [minimongoStore, selectedFormat])
 
   useEffect(() => {
     if (props.isOpen) {
@@ -157,7 +157,7 @@ export const ExportDialog = observer(function ExportDialog(
       })
       generatePreview()
     }
-  }, [props.isOpen, selectedFormat, minimongoStore])
+  }, [props.isOpen, selectedFormat, minimongoStore, generatePreview])
 
   const start = async () => {
     abortRef.current = new AbortController()

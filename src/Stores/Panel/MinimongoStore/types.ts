@@ -4,7 +4,18 @@
 
 export interface MinimongoMethodLog {
   collectionName: string
-  method: 'find' | 'findOne' | 'insert' | 'update' | 'upsert' | 'remove'
+  method:
+    | 'find'
+    | 'findOne'
+    | 'insert'
+    | 'update'
+    | 'upsert'
+    | 'remove'
+    | 'fetch'
+    | 'forEach'
+    | 'map'
+    | 'count'
+    | string
   selector?: any
   modifier?: any
   options?: any

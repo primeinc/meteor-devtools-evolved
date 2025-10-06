@@ -6,6 +6,7 @@ export enum PanelPage {
   DDP = 'ddp',
   BOOKMARKS = 'bookmarks',
   MINIMONGO = 'minimongo',
+  QUERYLOG = 'querylog',
   SUBSCRIPTIONS = 'subscriptions',
   PERFORMANCE = 'performance',
 }

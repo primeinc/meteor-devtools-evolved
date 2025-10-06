@@ -232,7 +232,9 @@ export class MinimongoStore {
   // Computed property for filtered query logs - NO array copies, just filtering
   @computed
   get filteredMethodLogs(): MinimongoMethodLog[] {
-    let logs = this.methodLogs
+    // Create plain array copy to prevent MobX tracking individual index accesses
+    // This avoids out-of-bounds warnings when filterRedundantOperations accesses logs[i+1]
+    let logs = this.methodLogs.slice()
 
     // Filter out redundant operations unless user wants to see them
     if (!this.queryLogShowRedundant) {

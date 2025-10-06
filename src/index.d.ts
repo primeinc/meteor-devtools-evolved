@@ -67,7 +67,8 @@ interface DDPLog {
   id: string
   content: string
   parsedContent?: DDPLogContent
-  trace?: StackTrace[]
+  trace?: StackTrace[] // Parsed stack trace (lazily computed from rawStackTrace)
+  rawStackTrace?: string | null // Raw stack string from Error.stack
   isInbound?: boolean
   isOutbound?: boolean
   timestamp?: number

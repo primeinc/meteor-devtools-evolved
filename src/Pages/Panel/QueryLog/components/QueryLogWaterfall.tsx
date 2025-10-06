@@ -265,7 +265,7 @@ export const QueryLogWaterfall: FunctionComponent<Props> = observer(
       })
 
       return correlations
-    }, [logs, ddpStore.collection])
+    }, [logs, ddpCollectionLength])
 
     const handleZoomIn = () => setZoom(prev => Math.min(prev * 1.5, 10))
     const handleZoomOut = () => setZoom(prev => Math.max(prev / 1.5, 0.5))
@@ -308,7 +308,10 @@ export const QueryLogWaterfall: FunctionComponent<Props> = observer(
             const relativeStart = log.timestamp - timeRange.start
             const barLeft = relativeStart * pixelsPerMs
             const barWidth = log.runtime * pixelsPerMs
-            const correlation = minimongoCorrelator.getCorrelationForQuery(log)
+            // Use untracked to prevent MobX reaction loop when accessing DDP store
+            const correlation = untracked(() =>
+              minimongoCorrelator.getCorrelationForQuery(log),
+            )
             const hasCorrelation = correlation.correlationConfidence !== 'NONE'
             const ddpMessages = ddpCorrelations.get(log.timestamp)
 

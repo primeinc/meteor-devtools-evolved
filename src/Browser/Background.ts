@@ -20,9 +20,12 @@ const connections: Connection = new Map()
 // Store panel state for E2E testing
 const PanelState = new Map<number, any>()
 
-self.connections = connections
-self.Cache = Cache
-self.PanelState = PanelState
+// Expose state for E2E testing only
+if (typeof self !== 'undefined' && (self as any).E2E_TEST) {
+  (self as any).connections = connections
+  (self as any).Cache = Cache
+  (self as any).PanelState = PanelState
+}
 
 // Port-based relay for exports (works around blob context issues)
 type TransferState = 'INIT' | 'IN_PROGRESS' | 'ABORTED' | 'FAILED' | 'COMPLETED'

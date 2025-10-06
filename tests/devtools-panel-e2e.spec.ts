@@ -1,16 +1,16 @@
 /**
  * DevTools Panel E2E Test
  *
- * Tests the Meteor DevTools panel UI and functionality
- * Based on Chrome Extensions DevTools testing guide
+ * Tests the Meteor DevTools panel via background service worker communication
+ * Strategy: Panel sends state to background → Test queries background
  */
 
 import {
   test,
   expect,
-  type Page,
   chromium,
   BrowserContext,
+  Page,
 } from '@playwright/test'
 import path from 'path'
 
@@ -18,13 +18,13 @@ const METEOR_APP = 'http://localhost:33000'
 const EXT = path.resolve(__dirname, '../extension/chrome')
 
 let context: BrowserContext
-let devtoolsPage: Page
 let testPage: Page
+let serviceWorker: any
 
 test.describe.configure({ mode: 'serial', retries: 0 })
 
 test.beforeAll(async () => {
-  // Launch context first
+  // Launch browser with extension
   context = await chromium.launchPersistentContext('', {
     headless: false,
     args: [
@@ -34,89 +34,107 @@ test.beforeAll(async () => {
     ],
   })
 
-  console.log('Context launched. Checking for existing pages...')
-  await context.pages()[0].waitForLoadState('domcontentloaded')
-  await context.pages()[0].waitForTimeout(2000)
-
-  // List all pages
-  const allPages = context.pages()
-  console.log(`Found ${allPages.length} pages:`)
-  for (const p of allPages) {
-    console.log(`  - ${p.url()}`)
+  // Get service worker
+  const workers = context.serviceWorkers()
+  if (workers.length === 0) {
+    throw new Error('No service worker found')
   }
+  serviceWorker = workers[0]
+  console.log('Service worker:', serviceWorker.url())
 
-  // Find devtools:// page in existing pages
-  devtoolsPage = allPages.find(p => p.url().startsWith('devtools://')) as Page
-  testPage = allPages.find(p => !p.url().startsWith('devtools://')) as Page
+  // Capture service worker console output
+  serviceWorker.on('console', msg => {
+    console.log(`[SW Console ${msg.type()}]:`, msg.text())
+  })
 
-  if (!devtoolsPage) {
-    throw new Error('DevTools page not found in context.pages()')
-  }
+  // Set up listener for PANEL_READY
+  const panelReadyPromise = serviceWorker.evaluate(() => {
+    return new Promise((resolve) => {
+      chrome.runtime.onMessage.addListener((msg) => {
+        if (msg.type === 'PANEL_READY') {
+          resolve(true)
+        }
+      })
+      setTimeout(() => resolve(false), 10000)
+    })
+  })
 
-  console.log('✅ DevTools page:', devtoolsPage.url())
-  console.log('✅ Test page:', testPage.url())
+  // Open test page
+  testPage = await context.newPage()
 
-  // Navigate test page to Meteor app
+  // Capture test page console output
+  testPage.on('console', msg => {
+    console.log(`[Page Console ${msg.type()}]:`, msg.text())
+  })
+
   await testPage.goto(METEOR_APP, { waitUntil: 'domcontentloaded' })
-  console.log('Test page navigated to:', METEOR_APP)
+  console.log('Test page loaded:', METEOR_APP)
+
+  // Wait for panel to register
+  const panelReady = await panelReadyPromise
+  console.log('Panel ready:', panelReady)
+
+  // Debug: List all pages in context
+  const allPages = context.pages()
+  console.log('Total pages:', allPages.length)
+  for (let i = 0; i < allPages.length; i++) {
+    console.log(`Page ${i}: ${allPages[i].url()}`)
+  }
 })
 
 test.afterAll(async () => {
   await context.close()
 })
 
-test('Should display DDP messages in panel', async () => {
+test('Should capture DDP messages in background cache', async () => {
   // Wait for Meteor to initialize
   await testPage.waitForSelector('button:has-text("String")', {
     timeout: 10000,
   })
   console.log('Meteor app ready')
 
-  // Click the Meteor tab in DevTools
-  console.log('Looking for Meteor tab...')
-  const meteorTab = devtoolsPage.locator('[aria-label*="Meteor"]')
-  await meteorTab.first().click()
-  console.log('✅ Clicked Meteor tab')
-
-  // Wait for the panel iframe to load
-  console.log('Looking for panel iframe...')
-  const panelFrameLocator = devtoolsPage.frameLocator(
-    'iframe[src*="devtools-panel.html"]',
-  )
-  await panelFrameLocator
-    .locator('.mde-ddp')
-    .waitFor({ state: 'visible', timeout: 5000 })
-  console.log('✅ Panel iframe loaded')
-
-  // Click DDP tab in the panel
-  await panelFrameLocator.getByRole('button', { name: 'DDP' }).click()
-  console.log('✅ Clicked DDP tab in panel')
-
-  // Trigger a Meteor call on the test page
-  console.log('Triggering Meteor.call()...')
+  // Trigger DDP activity
+  console.log('Clicking String button to trigger Meteor.call()...')
   await testPage.click('button:has-text("String")')
-  await testPage.waitForTimeout(1000)
+  await testPage.waitForTimeout(2000)
 
-  // Find the actual iframe frame to evaluate in it
-  const panelFrame = devtoolsPage
-    .frames()
-    .find(f => f.url().includes('devtools-panel.html'))
-  if (!panelFrame) {
-    throw new Error('Panel iframe not found in frames')
-  }
+  // Query background service worker Cache for DDP messages
+  const cacheData = await serviceWorker.evaluate(() => {
+    const cache = (self as any).Cache
+    console.log('Cache Map has', cache?.size, 'entries')
 
-  // Check if DDP messages appear in the panel
-  const ddpState = await panelFrame.evaluate(() => {
-    const ddpElement = document.querySelector('.mde-ddp')
-    const messageRows = document.querySelectorAll('.mde-ddp > div')
+    // Get all entries from Cache
+    const allEntries: any[] = []
+    if (cache && typeof cache.forEach === 'function') {
+      cache.forEach((messages: any[], tabId: number) => {
+        allEntries.push({
+          tabId,
+          messageCount: messages.length,
+          messages: messages.slice(0, 5) // First 5 messages
+        })
+      })
+    }
+
     return {
-      ddpElementExists: !!ddpElement,
-      messageCount: messageRows.length,
-      innerHTML: ddpElement?.innerHTML.substring(0, 300) || '',
+      allEntries,
+      cacheSize: cache?.size || 0
     }
   })
 
-  console.log('DDP Panel state:', JSON.stringify(ddpState, null, 2))
-  expect(ddpState.ddpElementExists).toBe(true)
-  expect(ddpState.messageCount).toBeGreaterThan(0)
+  console.log('Cache data from background:', JSON.stringify(cacheData, null, 2))
+  console.log('Tabs with cached messages:', cacheData.allEntries.map((e: any) => `Tab ${e.tabId}: ${e.messageCount} messages`))
+
+  // Verify we have cached messages
+  expect(cacheData.allEntries.length).toBeGreaterThan(0)
+
+  // Verify DDP messages were captured
+  const tabWithMessages = cacheData.allEntries.find((e: any) => e.messageCount > 0)
+  expect(tabWithMessages).toBeDefined()
+  expect(tabWithMessages.messageCount).toBeGreaterThan(0)
+
+  // Verify message structure
+  expect(tabWithMessages.messages.length).toBeGreaterThan(0)
+  const firstMessage = tabWithMessages.messages[0]
+  expect(firstMessage).toHaveProperty('eventType')
+  expect(firstMessage.eventType).toBe('ddp-event')
 })

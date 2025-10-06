@@ -76,12 +76,55 @@ const PanelObserverComponent: FunctionComponent = observer(() => {
     analytics?.pageView().catch(console.error)
   }, [analytics])
 
-  // Send PANEL_READY signal for E2E tests
+  // Send PANEL_READY signal and expose state for E2E tests
   useEffect(() => {
+    // Expose PanelStore to window for E2E test access
+    ;(window as any).PanelStore = store
+
+    // Send PANEL_READY signal
     browser.runtime.sendMessage({ type: 'PANEL_READY' }).catch(err => {
       console.debug('PANEL_READY signal failed (expected if not in test):', err)
     })
-  }, [])
+
+    // Wait for stores to initialize, then send initial panel state
+    const sendPanelState = () => {
+      try {
+        const state = {
+          ddp: {
+            messageCount: store.ddpStore?.collection?.length || 0,
+            messages: store.ddpStore?.collection?.slice(0, 5) || [],
+          },
+          minimongo: {
+            collectionNames: Object.keys(store.minimongoStore?.collections || {}),
+            queryLogCount: store.minimongoStore?.methodLogs?.length || 0,
+          },
+        }
+
+        browser.runtime
+          .sendMessage({
+            type: 'PANEL_STATE',
+            state,
+            tabId: browser.devtools.inspectedWindow.tabId,
+          })
+          .catch(err => {
+            console.debug('Failed to send panel state:', err)
+          })
+      } catch (err) {
+        console.debug('Error sending panel state:', err)
+      }
+    }
+
+    // Send initial state after a short delay to allow stores to initialize
+    const initialTimer = setTimeout(sendPanelState, 1000)
+
+    // Set up periodic state updates for E2E tests
+    const interval = setInterval(sendPanelState, 2000)
+
+    return () => {
+      clearTimeout(initialTimer)
+      clearInterval(interval)
+    }
+  }, [store])
 
   return (
     <Layout>

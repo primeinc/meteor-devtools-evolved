@@ -17,7 +17,12 @@ const Cache = new Map<number, string[]>()
 
 const connections: Connection = new Map()
 
+// Store panel state for E2E testing
+const PanelState = new Map<number, any>()
+
 self.connections = connections
+self.Cache = Cache
+self.PanelState = PanelState
 
 // Port-based relay for exports (works around blob context issues)
 type TransferState = 'INIT' | 'IN_PROGRESS' | 'ABORTED' | 'FAILED' | 'COMPLETED'
@@ -669,6 +674,22 @@ const tabListener = () => {
     // Health check ping for smoke tests
     if (request.type === 'PING') {
       sendResponse({ type: 'PONG' })
+      return
+    }
+
+    // Store panel state for E2E testing
+    if (request.type === 'PANEL_STATE') {
+      logger.debug('Storing panel state for tab:', request.tabId, 'state:', request.state)
+      console.log('[Background] PANEL_STATE received for tab:', request.tabId, 'DDP messages:', request.state?.ddp?.messageCount)
+      PanelState.set(request.tabId, request.state)
+      sendResponse({ received: true })
+      return
+    }
+
+    // Debug PANEL_READY for E2E testing
+    if (request.type === 'PANEL_READY') {
+      console.log('[Background] PANEL_READY received')
+      sendResponse({ received: true })
       return
     }
 

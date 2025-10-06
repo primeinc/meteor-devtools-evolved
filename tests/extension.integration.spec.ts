@@ -255,18 +255,26 @@ test.describe('MDE2 Integration Tests', () => {
 
   test.skip('Test 6: Minimongo Insert Operation - client-side inserts on subscribed collections', async () => {
     // NOTE: This test is skipped because:
-    // - RandomCollection contains subscribed data from server
-    // - Client-side insert() on subscribed collections requires allow/deny rules
-    // - The test app doesn't have allow rules configured
-    // - Testing insert tracking would require server-side methods or local collections
+    // - RandomCollection contains subscribed data from server.
+    // - Client-side insert() on subscribed collections requires allow/deny rules.
+    // - The test app doesn't have allow rules configured.
+    // - Testing insert tracking would require server-side methods or local collections.
+    // 
+    // To enable this test:
+    // - Add appropriate allow rules to RandomCollection in the test app (e.g., RandomCollection.allow({ insert: () => true })).
+    // - Alternatively, implement a server-side Meteor method to perform the insert, or use a local (client-only) collection for testing.
   })
 
   test.skip('Test 7: Minimongo Update Operation - client-side updates on subscribed collections', async () => {
     // NOTE: This test is skipped because:
-    // - RandomCollection contains subscribed data from server
-    // - Client-side update() on subscribed collections requires allow/deny rules
-    // - The test app doesn't have allow rules configured
-    // - Testing update tracking would require server-side methods or local collections
+    // - RandomCollection contains subscribed data from server.
+    // - Client-side update() on subscribed collections requires allow/deny rules.
+    // - The test app doesn't have allow rules configured.
+    // - Testing update tracking would require server-side methods or local collections.
+    //
+    // To enable this test:
+    // - Add appropriate allow rules to RandomCollection in the test app (e.g., RandomCollection.allow({ update: () => true })).
+    // - Alternatively, implement a server-side Meteor method to perform the update, or use a local (client-only) collection for testing.
   })
 
   test('Test 8: Cursor Fetch Operation - verifies cursor tracking', async () => {

@@ -195,7 +195,14 @@ test.describe('Content Script Injection', () => {
       logs.push(msg.text())
     })
 
-    await page.goto(METEOR_APP, { waitUntil: 'domcontentloaded' })
+    await page.goto(METEOR_APP, { waitUntil: 'networkidle' })
+
+    // Wait for the injection log to appear
+    await page.waitForFunction(() => {
+      return (
+        (window as any).__meteor_devtools_evolved_receiveMessage !== undefined
+      )
+    })
 
     // Find injection and React mount logs
     const injectionLog = logs.find(log => log.includes('Inject.ts loaded'))

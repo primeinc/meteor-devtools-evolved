@@ -12,6 +12,10 @@ interface Window {
   PanelStore?: any
   __sendStateToBackground?: () => void
   PanelState?: Map<number, any>
+
+  // Background service worker extensions (exposed for testing)
+  Cache?: Map<number, string[]>
+  connections?: Map<number, any>
 }
 
 declare namespace Meteor {

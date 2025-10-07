@@ -80,25 +80,29 @@ test.describe('MDE2 Integration Tests', () => {
     // Set up message listener after page loads
     await setupMessageCapture(page)
 
-    // Wait for Meteor to initialize and subscriptions to load
-    await page.waitForTimeout(3000)
-
-    // Verify Meteor is loaded
-    const hasMeteor = await page.evaluate(() => {
-      return typeof (window as any).Meteor !== 'undefined'
-    })
-    expect(hasMeteor).toBeTruthy()
+    // Wait for Meteor to initialize
+    await page.waitForFunction(
+      () => typeof (window as any).Meteor !== 'undefined',
+    )
 
     // Trigger a DDP method call by clicking the "String" button
-    // This calls Meteor.call('echo', 'Echo')
     const stringButton = page.locator('button:has-text("String")')
     await expect(stringButton).toBeVisible()
+
+    // Clear previous messages and click
+    await page.evaluate(() => {
+      ;(window as any).__mde2_captured_messages = []
+    })
     await stringButton.click()
 
-    // Wait for DDP messages to be captured
-    await page.waitForTimeout(1000)
+    // Wait for new DDP messages from the click
+    await page.waitForFunction(() => {
+      const messages = (window as any).__mde2_captured_messages || []
+      return (
+        messages.filter((msg: any) => msg.eventType === 'ddp-event').length > 0
+      )
+    })
 
-    // Check captured messages
     const messages = await getCapturedMessages(page)
 
     // Verify we captured at least one ddp-event message
@@ -107,104 +111,82 @@ test.describe('MDE2 Integration Tests', () => {
     )
 
     expect(ddpMessages.length).toBeGreaterThan(0)
-
-    // Log messages for debugging
-    console.log('Captured DDP messages:', JSON.stringify(ddpMessages, null, 2))
   })
 
   test('Test 2: Minimongo Query Logging - verifies extension captures collection queries', async () => {
     const page = await context.newPage()
 
     await page.goto(METEOR_APP, { waitUntil: 'domcontentloaded' })
-
-    // Set up message listener after page loads
     await setupMessageCapture(page)
 
-    await page.waitForTimeout(3000)
+    // Wait for Meteor
+    await page.waitForFunction(
+      () => typeof (window as any).Meteor !== 'undefined',
+    )
 
-    // Trigger a manual query by executing code in the page context
-    await page.evaluate(() => {
-      const { RandomCollection } = window as any
-      if (RandomCollection) {
-        // This should trigger minimongo instrumentation
-        RandomCollection.find({}).fetch()
-      }
+    // Wait for some minimongo messages to appear (subscriptions trigger queries)
+    await page.waitForFunction(() => {
+      const messages = (window as any).__mde2_captured_messages || []
+      return (
+        messages.filter((msg: any) => msg.eventType === 'minimongo-method')
+          .length > 0
+      )
     })
 
-    await page.waitForTimeout(1000)
-
-    // Check for minimongo-method messages
     const messages = await getCapturedMessages(page)
-
     const minimongoMessages = messages.filter(
       (msg: any) => msg.eventType === 'minimongo-method',
     )
 
     expect(minimongoMessages.length).toBeGreaterThan(0)
-
-    // Verify message structure contains query operation data
-    const findMessage = minimongoMessages.find(
-      (msg: any) => msg.data?.method === 'find' || msg.data?.method === 'fetch',
-    )
-
-    expect(findMessage).toBeDefined()
-    expect(findMessage.data).toHaveProperty('collectionName')
-    expect(findMessage.data).toHaveProperty('runtime')
+    expect(minimongoMessages[0].data).toHaveProperty('collectionName')
+    expect(minimongoMessages[0].data).toHaveProperty('runtime')
   })
 
   test('Test 3: Subscription Tracking - verifies extension captures subscription lifecycle', async () => {
     const page = await context.newPage()
 
     await page.goto(METEOR_APP, { waitUntil: 'domcontentloaded' })
-
-    // Set up message listener after page loads
     await setupMessageCapture(page)
 
-    // Wait longer for subscriptions to establish
-    await page.waitForTimeout(2000)
+    // Wait for Meteor and DDP messages to start flowing
+    await page.waitForFunction(() => {
+      const messages = (window as any).__mde2_captured_messages || []
+      return (
+        messages.filter((msg: any) => msg.eventType === 'ddp-event').length > 0
+      )
+    })
 
-    // Check captured messages
     const messages = await getCapturedMessages(page)
-
-    // Look for subscription-related DDP messages
     const ddpMessages = messages.filter(
       (msg: any) => msg.eventType === 'ddp-event',
     )
 
-    // We should have captured some DDP events during page load
     expect(ddpMessages.length).toBeGreaterThan(0)
-
-    console.log(
-      'Captured subscription messages:',
-      JSON.stringify(ddpMessages.slice(0, 5), null, 2),
-    )
   })
 
   test('Test 4: Minimongo Collection Updates - verifies extension tracks collection changes', async () => {
     const page = await context.newPage()
 
     await page.goto(METEOR_APP, { waitUntil: 'domcontentloaded' })
-
-    // Set up message listener after page loads
     await setupMessageCapture(page)
 
-    await page.waitForTimeout(3000)
+    // Wait for collection data to flow
+    await page.waitForFunction(() => {
+      const messages = (window as any).__mde2_captured_messages || []
+      return (
+        messages.filter(
+          (msg: any) => msg.eventType === 'minimongo-get-collections',
+        ).length > 0
+      )
+    })
 
-    // Check captured messages
     const messages = await getCapturedMessages(page)
-
-    // Look for minimongo-get-collections messages
     const collectionMessages = messages.filter(
       (msg: any) => msg.eventType === 'minimongo-get-collections',
     )
 
-    // We should have captured collection update messages
     expect(collectionMessages.length).toBeGreaterThan(0)
-
-    console.log(
-      'Captured collection messages:',
-      JSON.stringify(collectionMessages.slice(0, 2), null, 2),
-    )
   })
 
   test('Test 5: DDP Method with Object Parameter - verifies complex parameter serialization', async () => {
@@ -212,14 +194,32 @@ test.describe('MDE2 Integration Tests', () => {
 
     await page.goto(METEOR_APP, { waitUntil: 'domcontentloaded' })
     await setupMessageCapture(page)
-    await page.waitForTimeout(3000)
 
-    // Click the "Object" button which calls Meteor.call('echo', { large object })
+    await page.waitForFunction(
+      () => typeof (window as any).Meteor !== 'undefined',
+    )
+
     const objectButton = page.locator('button:has-text("Object")')
     await expect(objectButton).toBeVisible()
     await objectButton.click()
 
-    await page.waitForTimeout(1000)
+    // Wait for the method call to be captured
+    await page.waitForFunction(() => {
+      const messages = (window as any).__mde2_captured_messages || []
+      return messages.some((msg: any) => {
+        if (msg.eventType !== 'ddp-event') return false
+        try {
+          const parsed = JSON.parse(msg.data?.content || '{}')
+          return (
+            parsed.msg === 'method' &&
+            parsed.method === 'echo' &&
+            parsed.params?.length > 0
+          )
+        } catch {
+          return false
+        }
+      })
+    })
 
     const messages = await getCapturedMessages(page)
     const ddpMessages = messages.filter(
@@ -282,7 +282,13 @@ test.describe('MDE2 Integration Tests', () => {
 
     await page.goto(METEOR_APP, { waitUntil: 'domcontentloaded' })
     await setupMessageCapture(page)
-    await page.waitForTimeout(3000)
+
+    await page.waitForFunction(() => {
+      return (
+        typeof (window as any).Meteor !== 'undefined' &&
+        typeof (window as any).RandomCollection !== 'undefined'
+      )
+    })
 
     // Perform a cursor fetch
     await page.evaluate(() => {
@@ -292,7 +298,14 @@ test.describe('MDE2 Integration Tests', () => {
       }
     })
 
-    await page.waitForTimeout(500)
+    // Wait for fetch message to be captured
+    await page.waitForFunction(() => {
+      const messages = (window as any).__mde2_captured_messages || []
+      return messages.some(
+        (msg: any) =>
+          msg.eventType === 'minimongo-method' && msg.data?.method === 'fetch',
+      )
+    })
 
     const messages = await getCapturedMessages(page)
     const minimongoMessages = messages.filter(
@@ -315,7 +328,13 @@ test.describe('MDE2 Integration Tests', () => {
 
     await page.goto(METEOR_APP, { waitUntil: 'domcontentloaded' })
     await setupMessageCapture(page)
-    await page.waitForTimeout(3000)
+
+    await page.waitForFunction(() => {
+      return (
+        typeof (window as any).Meteor !== 'undefined' &&
+        typeof (window as any).RandomCollection !== 'undefined'
+      )
+    })
 
     // Perform multiple operations
     await page.evaluate(() => {
@@ -327,7 +346,15 @@ test.describe('MDE2 Integration Tests', () => {
       }
     })
 
-    await page.waitForTimeout(500)
+    // Wait for performance messages
+    await page.waitForFunction(() => {
+      const messages = (window as any).__mde2_captured_messages || []
+      return (
+        messages.filter(
+          (msg: any) => msg.eventType === 'meteor-data-performance',
+        ).length >= 5
+      )
+    })
 
     const messages = await getCapturedMessages(page)
     const perfMessages = messages.filter(
@@ -349,7 +376,10 @@ test.describe('MDE2 Integration Tests', () => {
 
     await page.goto(METEOR_APP, { waitUntil: 'domcontentloaded' })
     await setupMessageCapture(page)
-    await page.waitForTimeout(3000)
+
+    await page.waitForFunction(
+      () => typeof (window as any).Meteor !== 'undefined',
+    )
 
     // Trigger multiple method calls rapidly
     await page.evaluate(() => {
@@ -358,7 +388,19 @@ test.describe('MDE2 Integration Tests', () => {
       }
     })
 
-    await page.waitForTimeout(2000)
+    // Wait for all method calls to be captured
+    await page.waitForFunction(() => {
+      const messages = (window as any).__mde2_captured_messages || []
+      const methodCalls = messages.filter((msg: any) => {
+        try {
+          const parsed = JSON.parse(msg.data?.content || '{}')
+          return parsed.msg === 'method' && parsed.method === 'echo'
+        } catch {
+          return false
+        }
+      })
+      return methodCalls.length >= 5
+    })
 
     const messages = await getCapturedMessages(page)
     const ddpMessages = messages.filter(
@@ -389,13 +431,23 @@ test.describe('MDE2 Integration Tests', () => {
 
     await page.goto(METEOR_APP, { waitUntil: 'domcontentloaded' })
     await setupMessageCapture(page)
-    await page.waitForTimeout(3000)
+
+    await page.waitForFunction(
+      () => typeof (window as any).Meteor !== 'undefined',
+    )
 
     // Trigger a method call
     const stringButton = page.locator('button:has-text("String")')
     await stringButton.click()
 
-    await page.waitForTimeout(1000)
+    // Wait for DDP message with trace
+    await page.waitForFunction(() => {
+      const messages = (window as any).__mde2_captured_messages || []
+      return messages.some(
+        (msg: any) =>
+          msg.eventType === 'ddp-event' && msg.data?.trace?.length > 0,
+      )
+    })
 
     const messages = await getCapturedMessages(page)
     const ddpMessages = messages.filter(

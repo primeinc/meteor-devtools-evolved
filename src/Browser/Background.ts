@@ -7,12 +7,6 @@ const exportLogger = createLogger('Export')
 
 type Connection = Map<number, any>
 
-declare global {
-  interface Window {
-    connections: Connection
-  }
-}
-
 const Cache = new Map<number, string[]>()
 
 const connections: Connection = new Map()
@@ -24,9 +18,9 @@ const PanelState = new Map<number, any>()
 // NOTE: These are exposed unconditionally because the service worker loads
 // before tests can set E2E_TEST flag. This is safe in production since
 // service workers don't have DOM access and can't be inspected from web pages.
-self.connections = connections
-self.Cache = Cache
-self.PanelState = PanelState
+;(self as any).connections = connections
+;(self as any).Cache = Cache
+;(self as any).PanelState = PanelState
 
 // Port-based relay for exports (works around blob context issues)
 type TransferState = 'INIT' | 'IN_PROGRESS' | 'ABORTED' | 'FAILED' | 'COMPLETED'

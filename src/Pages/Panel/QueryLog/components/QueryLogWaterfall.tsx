@@ -226,12 +226,9 @@ export const QueryLogWaterfall: FunctionComponent<Props> = observer(
     const timeRange = getTimeRange()
 
     // Calculate pixel scale (pixels per millisecond)
-    const pixelsPerMs = useMemo(() => {
-      // Fixed scale: 1px = 1ms (adjustable with zoom)
-      // This shows true time distribution instead of auto-fitting to viewport
-      const baseScale = 1
-      return baseScale * zoom
-    }, [zoom])
+    // Fixed scale: 1px = 1ms (adjustable with zoom)
+    // This shows true time distribution instead of auto-fitting to viewport
+    const pixelsPerMs = zoom
 
     // Generate timeline ticks
     // Direct calculation - cheap operation, no need for useMemo

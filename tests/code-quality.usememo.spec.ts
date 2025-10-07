@@ -19,11 +19,6 @@ test.describe('useMemo with MobX Validation', () => {
     // Whitelist: Files and reasons where useMemo is allowed
     const ALLOWED_USEMEMO_USAGE = [
       {
-        file: 'src/Pages/Panel/QueryLog/components/QueryLogWaterfall.tsx',
-        reason: 'pixelsPerMs - depends only on local zoom state (not MobX)',
-        pattern: /pixelsPerMs.*?useMemo.*?\[zoom\]/s,
-      },
-      {
         file: 'src/Pages/Panel/Minimongo/components/CopySplitButton.tsx',
         reason:
           'primaryLabel - depends only on local lastFormat state (not MobX)',
@@ -104,11 +99,6 @@ test.describe('useMemo with MobX Validation', () => {
 
   test('Whitelisted useMemo files should exist', async () => {
     const ALLOWED_USEMEMO_USAGE = [
-      {
-        file: 'src/Pages/Panel/QueryLog/components/QueryLogWaterfall.tsx',
-        reason: 'pixelsPerMs - depends only on local zoom state (not MobX)',
-        pattern: /pixelsPerMs.*?useMemo.*?\[zoom\]/s,
-      },
       {
         file: 'src/Pages/Panel/Minimongo/components/CopySplitButton.tsx',
         reason:

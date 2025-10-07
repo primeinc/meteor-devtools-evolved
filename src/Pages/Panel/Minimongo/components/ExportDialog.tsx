@@ -11,7 +11,7 @@ import {
   Checkbox,
   HTMLSelect,
 } from '@blueprintjs/core'
-import { runInAction } from 'mobx'
+import { runInAction, untracked } from 'mobx'
 import { usePanelStore } from '@/Stores/PanelStore'
 import { ExportService } from '../services/ExportService'
 import { ExportFormat, flattenObject } from '../services/MongoExportFormats'
@@ -43,26 +43,37 @@ export const ExportDialog = observer(function ExportDialog(
     }
   }, [])
 
+  // Extract primitive values for dependency array (avoiding MobX observables)
+  const documentCount =
+    minimongoStore.activeCollectionDocuments?.filtered?.length ?? 0
+  const collectionCount = Object.keys(minimongoStore.collections).length
+
   const generatePreview = useCallback(async () => {
     // Gather documents from active collection or all collections
+    // Use untracked() to read observables without adding them to deps
+    // (we track changes via primitive documentCount/collectionCount instead)
     let docs: any[]
     let collectionName: string
 
     if (minimongoStore.activeCollection) {
       // Single collection export
-      const wrappers = minimongoStore.activeCollectionDocuments?.filtered || []
+      const wrappers = untracked(
+        () => minimongoStore.activeCollectionDocuments?.filtered || [],
+      )
       docs = wrappers.map((w: any) => w.document)
       collectionName = minimongoStore.activeCollection
     } else {
       // All collections export
       const allDocs: any[] = []
-      Object.entries(minimongoStore.collections).forEach(
-        ([name, wrappers]: [string, any[]]) => {
-          wrappers.forEach((w: any) => {
-            allDocs.push({ _collection: name, ...w.document })
-          })
-        },
-      )
+      untracked(() => {
+        Object.entries(minimongoStore.collections).forEach(
+          ([name, wrappers]: [string, any[]]) => {
+            wrappers.forEach((w: any) => {
+              allDocs.push({ _collection: name, ...w.document })
+            })
+          },
+        )
+      })
       docs = allDocs
       collectionName = 'all-collections'
     }
@@ -147,10 +158,12 @@ export const ExportDialog = observer(function ExportDialog(
     setPreviewData(data)
     setPreviewSize(bytes)
     setShowPreview(true)
+    // MobX observables are accessed via untracked() and tracked via primitive documentCount/collectionCount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     minimongoStore.activeCollection,
-    minimongoStore.activeCollectionDocuments,
-    minimongoStore.collections,
+    documentCount,
+    collectionCount,
     selectedFormat,
   ])
 

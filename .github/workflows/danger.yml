@@ -105,14 +105,10 @@ jobs:
           # Citation: 12-Factor App - III. Config
           # Source: https://12factor.net/config
           DANGER_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DANGER_DISABLE_TRANSPILATION: true
         run: |
-          # Compile TypeScript Dangerfile with dedicated config
-          npx tsc --project tsconfig.danger.json
-
-          # Run Danger with compiled file
+          # Run Danger with TypeScript file directly
           npx danger ci \
-            --dangerfile .danger/dangerfile.js \
+            --dangerfile dangerfile.ts \
             --id danger-validation \
             --verbose
 

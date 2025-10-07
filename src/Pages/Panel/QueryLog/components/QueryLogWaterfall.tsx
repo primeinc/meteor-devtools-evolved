@@ -231,7 +231,7 @@ export const QueryLogWaterfall: FunctionComponent<Props> = observer(
     const pixelsPerMs = zoom
 
     // Generate timeline ticks
-    // Direct calculation - cheap operation, no need for useMemo
+    // Direct calculation - cheap operation, observer handles optimization
     const tickInterval = timeRange.duration > 1000 ? 100 : 10 // 100ms or 10ms intervals
     const tickCount = Math.ceil(timeRange.duration / tickInterval)
     const ticks = Array.from({ length: tickCount + 1 }, (_, i) => ({

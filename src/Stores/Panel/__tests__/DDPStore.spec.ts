@@ -49,6 +49,10 @@ describe('DDPStore', () => {
     if (store && typeof store.removeAllListeners === 'function') {
       store.removeAllListeners()
     }
+    // Cancel debounced functions to prevent open handles
+    if (store && store.clearNewLogs && store.clearNewLogs.cancel) {
+      store.clearNewLogs.cancel()
+    }
   })
 
   describe('initialization', () => {

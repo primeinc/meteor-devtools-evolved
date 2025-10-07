@@ -5,6 +5,9 @@ import { generateAuthToken } from '@/Utils/SecureId'
 const logger = createLogger('Background')
 const exportLogger = createLogger('Export')
 
+// Emit guaranteed log on SW activation for E2E testing
+console.info('[Background] Service worker activated')
+
 type Connection = Map<number, any>
 
 const Cache = new Map<number, string[]>()

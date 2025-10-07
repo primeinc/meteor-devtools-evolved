@@ -57,25 +57,28 @@ test.describe('Service Worker Communication', () => {
     const sw = context.serviceWorkers()[0]
 
     // Set up listener for DEVTOOLS_INIT_RECV in service worker
-    const readyResponsePromise = sw.evaluate(() => {
+    // Note: setTimeout not available in worker.evaluate context, so we use Promise.race
+    const listenerPromise = sw.evaluate(() => {
       return new Promise<boolean>(resolve => {
-        const timeout = setTimeout(() => resolve(false), 10000)
-
         chrome.runtime.onMessage.addListener(msg => {
           if (msg?.type === 'DEVTOOLS_INIT_RECV') {
-            clearTimeout(timeout)
             resolve(true)
           }
         })
       })
     })
 
+    // Create timeout promise using page context (where setTimeout IS available)
+    const timeoutPromise = new Promise<boolean>(resolve => {
+      setTimeout(() => resolve(false), 10000)
+    })
+
     // Open page which will trigger panel initialization
     const page = await context.newPage()
     await page.goto(METEOR_APP, { waitUntil: 'domcontentloaded' })
 
-    // Verify service worker saw the DEVTOOLS_INIT_RECV message
-    const sawReady = await readyResponsePromise
+    // Race between listener and timeout
+    const sawReady = await Promise.race([listenerPromise, timeoutPromise])
     expect(sawReady).toBe(true)
   })
 

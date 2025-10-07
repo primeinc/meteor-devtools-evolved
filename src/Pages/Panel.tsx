@@ -77,6 +77,7 @@ const PanelObserverComponent: FunctionComponent = observer(() => {
   }, [analytics])
 
   // Send PANEL_READY signal and expose state for E2E tests
+  // This effect runs once on mount - the store instance is stable and won't change
   useEffect(() => {
     // Expose PanelStore to window for E2E test access
     ;(window as any).PanelStore = store
@@ -95,7 +96,9 @@ const PanelObserverComponent: FunctionComponent = observer(() => {
             messages: store.ddpStore?.collection?.slice(0, 5) || [],
           },
           minimongo: {
-            collectionNames: Object.keys(store.minimongoStore?.collections || {}),
+            collectionNames: Object.keys(
+              store.minimongoStore?.collections || {},
+            ),
             queryLogCount: store.minimongoStore?.methodLogs?.length || 0,
           },
         }
@@ -124,7 +127,8 @@ const PanelObserverComponent: FunctionComponent = observer(() => {
       clearTimeout(initialTimer)
       clearInterval(interval)
     }
-  }, [store])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <Layout>

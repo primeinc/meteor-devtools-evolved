@@ -5,6 +5,15 @@ module.exports = merge(require('@tstt/eslint-config/index.js'), {
   rules: {
     'prettier/prettier': ['error', { endOfLine: 'auto' }],
     'react-hooks/exhaustive-deps': 'error',
+    'no-restricted-syntax': [
+      'error',
+      {
+        selector:
+          'CallExpression[callee.name=/^(useCallback|useEffect|useMemo)$/] > ArrayExpression.arguments:last-child > Identifier[name=/Store$/]',
+        message:
+          'Do not use entire Store objects in useCallback/useEffect/useMemo dependency arrays. Use specific store methods or properties instead (e.g., [store.method] not [store]).',
+      },
+    ],
     'no-useless-catch': 0,
     'global-require': 0,
     '@typescript-eslint/no-var-requires': 0,

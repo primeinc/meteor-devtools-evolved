@@ -62,12 +62,11 @@ const getRawStackTrace = (stackTraceLimit: number): string | null => {
 }
 
 export const sendLogMessage = (message: DDPLog) => {
-  // TEMPORARY: Disable stack traces to test if they're causing serialization issues
-  // const rawStack = getRawStackTrace(15)
+  const rawStack = getRawStackTrace(15)
 
   sendMessage('ddp-event', {
     ...message,
-    rawStackTrace: null, // TEMP: Disabled for testing
+    rawStackTrace: rawStack,
     host: location.host,
   })
 

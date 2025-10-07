@@ -21,7 +21,8 @@ export const DDPStatus: FunctionComponent = observer(() => {
   const activeFilters = settingStore.activeFilters
   const setFilter = useCallback(
     (type, isEnabled) => settingStore.setFilter(type, isEnabled),
-    [settingStore],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [settingStore.setFilter],
   )
   const collectionLength = ddpStore.collection.length
   const { inboundBytes, outboundBytes, isLoading, pagination } = ddpStore

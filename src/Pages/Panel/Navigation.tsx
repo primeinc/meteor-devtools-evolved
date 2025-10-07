@@ -17,10 +17,13 @@ export const Navigation: FunctionComponent = observer(() => {
   const analytics = useAnalytics()
 
   useEffect(() => {
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       panelStore.settingStore.updateRepositoryData()
     }, REPO_DATA_FETCH_DELAY_MS)
-  }, [panelStore.settingStore])
+
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panelStore.settingStore.updateRepositoryData])
 
   const { repositoryData } = panelStore.settingStore
 

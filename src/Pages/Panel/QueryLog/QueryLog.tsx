@@ -110,17 +110,19 @@ export const QueryLog: FunctionComponent<Props> = observer(({ isVisible }) => {
         !minimongoStore.queryLogFilters[method],
       )
     },
-    [minimongoStore],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [minimongoStore.setQueryLogFilter],
   )
 
   // Removed clear logs to avoid interfering with live data
 
-  logger.debug('QueryLog panel rendered', {
-    isVisible,
-    totalLogs: minimongoStore.methodLogs.length,
-    filteredLogs: processedLogs.length,
-    showRedundant: minimongoStore.queryLogShowRedundant,
-  })
+  // Temporarily disabled logger to diagnose infinite loop
+  // logger.debug('QueryLog panel rendered', {
+  //   isVisible,
+  //   totalLogs: minimongoStore.methodLogs.length,
+  //   filteredLogs: processedLogs.length,
+  //   showRedundant: minimongoStore.queryLogShowRedundant,
+  // })
 
   return (
     <Hideable isVisible={isVisible}>

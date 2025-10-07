@@ -53,6 +53,26 @@ useMemo(() => {...}, [collectionLength])
 useMemo(() => store.items.filter(...), [store.items])
 useEffect(() => {...}, [store.collection])
 useCallback(() => {...}, [minimongoStore.methodLogs])
+
+// WRONG - entire store object triggers on ANY observable change
+useCallback(() => {
+  panelStore.setTab('DDP')
+}, [panelStore])  // ❌ Whole store
+
+// WRONG - observable properties change reference on every mutation
+useCallback(() => {
+  navigate(log.collectionName)
+}, [log.collectionName])  // ❌ Property from observable object
+
+// CORRECT - only use action methods (stable refs) or primitives
+useCallback(() => {
+  panelStore.setTab('DDP')
+}, [panelStore.setTab])  // ✅ Action method
+
+// CORRECT - don't use useCallback at all for simple event handlers
+const handleClick = () => {
+  panelStore.setTab('DDP')  // ✅ No deps needed
+}
 ```
 
 ### ❌ DON'T: Read observables inside memo/effect bodies
@@ -67,6 +87,36 @@ useMemo(() => {
 ### ❌ DON'T: Use `// eslint-disable-next-line` to paper over violations
 
 Fix the architecture, don't silence the alarm.
+
+**Exception:** When intentionally using only MobX action methods (not entire stores) in deps, you may need to disable exhaustive-deps:
+```ts
+// Acceptable use - we intentionally exclude the store object
+const handleFilter = useCallback(
+  (type) => settingStore.setFilter(type, true),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  [settingStore.setFilter]  // ✅ Action only, not settingStore
+)
+```
+
+### ✅ DO: Question if you need useCallback at all
+
+From React docs: "You only need useCallback when you pass a callback to an optimized child component."
+
+```ts
+// DON'T need useCallback for:
+// - onClick/onChange handlers in the same component
+// - Functions not passed to children
+
+// ❌ Over-optimized - caused infinite loop
+const handleClick = useCallback(() => {
+  doSomething(log.property)
+}, [log.property])
+
+// ✅ Simple is better
+const handleClick = () => {
+  doSomething(log.property)
+}
+```
 
 ## Required Tests
 
@@ -175,6 +225,11 @@ export const useLogSearch = () => minimongoStore.queryLogSearch
 | Minimongo.tsx:78 | `minimongoStore.collections` in effect | Convert to Set outside effect |
 | QueryLog.tsx | Filtering in useMemo | Moved to store `@computed` |
 | ExportDialog.tsx:160 | `generatePreview` recreated every render | `useCallback` with stable deps |
+| **QueryLogDetail.tsx:402-407** | **`useCallback` with `[panelStore, log.property]`** | **Removed useCallback - simple handlers** |
+| **BookmarksStatus.tsx:20** | **`useCallback` with `[settingStore]`** | **Changed to `[settingStore.setFilter]`** |
+| **DDPStatus.tsx:24** | **`useCallback` with `[settingStore]`** | **Changed to `[settingStore.setFilter]`** |
+| **QueryLog.tsx:113** | **`useCallback` with `[minimongoStore]`** | **Changed to `[minimongoStore.setQueryLogFilter]`** |
+| **ExportDialog.tsx:150-160** | **Observable properties in deps** | **Changed to action methods only** |
 
 ## Reference Implementation
 

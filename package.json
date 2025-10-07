@@ -27,11 +27,12 @@
     "clean": "rimraf extension/firefox extension/chrome",
     "lint": "eslint ./src --ext .js,.jsx,.ts,.tsx --cache .",
     "test:unit": "jest --runInBand --detectOpenHandles",
+    "test:quality": "playwright test tests/code-quality.anti-patterns.spec.ts",
     "test:e2e": "yarn build:chrome && playwright test",
     "test:e2e:dev": "yarn build:chrome && playwright test --headed",
     "pretest:e2e:with-app": "yarn build:chrome",
     "test:e2e:with-app": "start-server-and-test start:testapp http://localhost:33000 test:e2e",
-    "test": "yarn test:unit && yarn test:e2e",
+    "test": "yarn test:quality && yarn test:unit && yarn test:e2e",
     "test:watch": "jest --watch"
   },
   "author": "Leonardo Venturini",

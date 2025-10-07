@@ -20,7 +20,8 @@ type ExtensionFixtures = {
 
 // Extend base test with extension fixtures
 export const test = base.extend<ExtensionFixtures>({
-  context: async (_fixtures, use) => {
+  // eslint-disable-next-line no-empty-pattern
+  context: async ({}, use) => {
     // Launch browser with extension loaded
     const context = await chromium.launchPersistentContext('', {
       headless: false,
@@ -50,12 +51,11 @@ export const test = base.extend<ExtensionFixtures>({
 
   serviceWorker: async ({ context }, use) => {
     // Get service worker and set up console logging
-    const workers = context.serviceWorkers()
-    if (workers.length === 0) {
-      throw new Error('No service worker found')
+    let [serviceWorker] = context.serviceWorkers()
+    if (!serviceWorker) {
+      serviceWorker = await context.waitForEvent('serviceworker')
     }
 
-    const serviceWorker = workers[0]
     console.log('Service worker:', serviceWorker.url())
 
     // Capture service worker console output

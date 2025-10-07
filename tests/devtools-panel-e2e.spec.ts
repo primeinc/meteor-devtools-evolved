@@ -5,13 +5,7 @@
  * Strategy: Panel sends state to background → Test queries background
  */
 
-import {
-  test,
-  expect,
-  chromium,
-  BrowserContext,
-  Page,
-} from '@playwright/test'
+import { test, expect, chromium, BrowserContext, Page } from '@playwright/test'
 import path from 'path'
 
 const METEOR_APP = 'http://localhost:33000'
@@ -35,11 +29,11 @@ test.beforeAll(async () => {
   })
 
   // Get service worker
-  const workers = context.serviceWorkers()
-  if (workers.length === 0) {
-    throw new Error('No service worker found')
+  let [background] = context.serviceWorkers()
+  if (!background) {
+    background = await context.waitForEvent('serviceworker')
   }
-  serviceWorker = workers[0]
+  serviceWorker = background
   console.log('Service worker:', serviceWorker.url())
 
   // Capture service worker console output
@@ -49,8 +43,8 @@ test.beforeAll(async () => {
 
   // Set up listener for PANEL_READY
   const panelReadyPromise = serviceWorker.evaluate(() => {
-    return new Promise((resolve) => {
-      chrome.runtime.onMessage.addListener((msg) => {
+    return new Promise(resolve => {
+      chrome.runtime.onMessage.addListener(msg => {
         if (msg.type === 'PANEL_READY') {
           resolve(true)
         }
@@ -110,25 +104,32 @@ test('Should capture DDP messages in background cache', async () => {
         allEntries.push({
           tabId,
           messageCount: messages.length,
-          messages: messages.slice(0, 5) // First 5 messages
+          messages: messages.slice(0, 5), // First 5 messages
         })
       })
     }
 
     return {
       allEntries,
-      cacheSize: cache?.size || 0
+      cacheSize: cache?.size || 0,
     }
   })
 
   console.log('Cache data from background:', JSON.stringify(cacheData, null, 2))
-  console.log('Tabs with cached messages:', cacheData.allEntries.map((e: any) => `Tab ${e.tabId}: ${e.messageCount} messages`))
+  console.log(
+    'Tabs with cached messages:',
+    cacheData.allEntries.map(
+      (e: any) => `Tab ${e.tabId}: ${e.messageCount} messages`,
+    ),
+  )
 
   // Verify we have cached messages
   expect(cacheData.allEntries.length).toBeGreaterThan(0)
 
   // Verify DDP messages were captured
-  const tabWithMessages = cacheData.allEntries.find((e: any) => e.messageCount > 0)
+  const tabWithMessages = cacheData.allEntries.find(
+    (e: any) => e.messageCount > 0,
+  )
   expect(tabWithMessages).toBeDefined()
   expect(tabWithMessages.messageCount).toBeGreaterThan(0)
 

@@ -84,7 +84,12 @@ export const Minimongo: FunctionComponent<Props> = observer(({ isVisible }) => {
     if (isActiveCollectionMissing) {
       minimongoStore.setActiveCollection(null)
     }
-  }, [minimongoStore.activeCollection, collectionNamesSet, minimongoStore])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    minimongoStore.activeCollection,
+    collectionNamesSet,
+    minimongoStore.setActiveCollection,
+  ])
 
   return (
     <Hideable isVisible={isVisible}>

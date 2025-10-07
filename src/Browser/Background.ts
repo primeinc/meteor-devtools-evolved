@@ -689,20 +689,13 @@ const tabListener = () => {
         'state:',
         request.state,
       )
-      console.log(
-        '[Background] PANEL_STATE received for tab:',
-        request.tabId,
-        'DDP messages:',
-        request.state?.ddp?.messageCount,
-      )
       PanelState.set(request.tabId, request.state)
       sendResponse({ received: true })
       return
     }
 
-    // Debug PANEL_READY for E2E testing
+    // Handle PANEL_READY for E2E testing
     if (request.type === 'PANEL_READY') {
-      console.log('[Background] PANEL_READY received')
       sendResponse({ received: true })
       return
     }

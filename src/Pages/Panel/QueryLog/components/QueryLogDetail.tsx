@@ -376,7 +376,7 @@ export const QueryLogDetail: FunctionComponent<Props> = observer(
     const correlation = minimongoCorrelator.getCorrelationForQuery(log)
     const hasCorrelation = correlation.correlationConfidence !== 'NONE'
 
-    const handleCopy = useCallback(() => {
+    const handleCopy = () => {
       let code = ''
 
       if (copyFormat === 'console') {
@@ -386,28 +386,24 @@ export const QueryLogDetail: FunctionComponent<Props> = observer(
       }
 
       navigator.clipboard.writeText(code)
-    }, [log, copyFormat, copyOptions])
+    }
 
     const handleJumpToDDP = () => {
-      // DISABLED - Investigating data clearing issue
-      console.warn('Jump to DDP disabled - investigating data clearing issue')
-
-      // Original code commented out:
-      // const relatedDDP = panelStore.ddpStore.collection.find(ddp => {
-      //   if (!ddp.parsedContent?.collection || !ddp.timestamp) return false
-      //   return ddp.parsedContent.collection === log.collectionName &&
-      //          Math.abs(ddp.timestamp - log.timestamp) < 100
-      // })
-      // if (relatedDDP) {
-      //   panelStore.setSelectedTabId(PanelPage.DDP)
-      // }
+      const relatedDDP = panelStore.ddpStore.collection.find(ddp => {
+        if (!ddp.parsedContent?.collection || !ddp.timestamp) return false
+        return (
+          ddp.parsedContent.collection === log.collectionName &&
+          Math.abs(ddp.timestamp - log.timestamp) < 100
+        )
+      })
+      if (relatedDDP) {
+        panelStore.setSelectedTabId(PanelPage.DDP)
+      }
     }
 
     const handleViewCollection = () => {
-      // DISABLED - This might be clearing site data
-      // panelStore.setSelectedTabId(PanelPage.MINIMONGO)
-      // panelStore.minimongoStore.setActiveCollection(log.collectionName)
-      console.warn('View Collection disabled - potential data clearing issue')
+      panelStore.setSelectedTabId(PanelPage.MINIMONGO)
+      panelStore.minimongoStore.setActiveCollection(log.collectionName)
     }
 
     return (

@@ -108,7 +108,7 @@ jobs:
           DANGER_DISABLE_TRANSPILATION: true
         run: |
           # Compile TypeScript Dangerfile
-          npx tsc dangerfile.ts --outDir .danger --target ES2020 --module commonjs
+          npx tsc dangerfile.ts --outDir .danger --target ES2020 --module commonjs --skipLibCheck
 
           # Run Danger with compiled file
           npx danger ci \

@@ -131,7 +131,7 @@ export const MeteorAdapter = () => {
             }
 
             // Try to get options from multiple possible locations
-            const options = {}
+            const options: any = {}
             try {
               if (this.sorter?._sortSpecParts)
                 options.sort = this.sorter._sortSpecParts

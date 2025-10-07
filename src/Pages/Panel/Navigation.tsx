@@ -149,6 +149,7 @@ export const Navigation: FunctionComponent = observer(() => {
       <TabBar
         tabs={tabs}
         menu={menu}
+        activeKey={panelStore.selectedTabId}
         onChange={key => panelStore.setSelectedTabId(key)}
       />
     </div>

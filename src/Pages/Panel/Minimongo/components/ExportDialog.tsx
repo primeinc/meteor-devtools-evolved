@@ -147,8 +147,12 @@ export const ExportDialog = observer(function ExportDialog(
     setPreviewData(data)
     setPreviewSize(bytes)
     setShowPreview(true)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [minimongoStore.activeCollection, selectedFormat])
+  }, [
+    minimongoStore.activeCollection,
+    minimongoStore.activeCollectionDocuments,
+    minimongoStore.collections,
+    selectedFormat,
+  ])
 
   useEffect(() => {
     if (props.isOpen) {
@@ -159,12 +163,7 @@ export const ExportDialog = observer(function ExportDialog(
       generatePreview()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    props.isOpen,
-    selectedFormat,
-    minimongoStore.exportStatus,
-    generatePreview,
-  ])
+  }, [props.isOpen, selectedFormat, generatePreview])
 
   const start = async () => {
     abortRef.current = new AbortController()

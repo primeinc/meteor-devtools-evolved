@@ -1,4 +1,4 @@
-import React, { FunctionComponent, useState, useCallback, useMemo } from 'react'
+import React, { FunctionComponent, useState, useCallback } from 'react'
 import { observer } from 'mobx-react-lite'
 import styled from 'styled-components'
 import {
@@ -15,6 +15,7 @@ import { MinimongoMethodLog } from '@/Stores/Panel/MinimongoStore/types'
 import { minimongoCorrelator } from '@/Services/MinimongoDDPCorrelator'
 import { usePanelStore } from '@/Stores/PanelStore'
 import { PanelPage } from '@/Constants'
+import { copyText } from '@/Pages/Panel/Minimongo/services/ClipboardService'
 
 interface Props {
   log: MinimongoMethodLog | null
@@ -376,7 +377,7 @@ export const QueryLogDetail: FunctionComponent<Props> = observer(
     const correlation = minimongoCorrelator.getCorrelationForQuery(log)
     const hasCorrelation = correlation.correlationConfidence !== 'NONE'
 
-    const handleCopy = () => {
+    const handleCopy = async () => {
       let code = ''
 
       if (copyFormat === 'console') {
@@ -385,7 +386,7 @@ export const QueryLogDetail: FunctionComponent<Props> = observer(
         code = generateStandaloneScript(log, copyOptions)
       }
 
-      navigator.clipboard.writeText(code)
+      await copyText('Query code', code)
     }
 
     const handleJumpToDDP = () => {

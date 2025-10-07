@@ -2,7 +2,7 @@ import { MinimongoNavigator } from '@/Pages/Panel/Minimongo/MinimongoNavigator'
 import { usePanelStore } from '@/Stores/PanelStore'
 import { Hideable } from '@/Utils/Hideable'
 import { observer } from 'mobx-react-lite'
-import React, { FunctionComponent, useEffect, useMemo } from 'react'
+import React, { FunctionComponent, useEffect } from 'react'
 import { MinimongoContainer } from '@/Pages/Panel/Minimongo/MinimongoContainer'
 import styled from 'styled-components'
 import { MinimongoStatus } from '@/Pages/Panel/Minimongo/MinimongoStatus'
@@ -70,12 +70,10 @@ export const Minimongo: FunctionComponent<Props> = observer(({ isVisible }) => {
   const { minimongoStore } = usePanelStore()
 
   // Use useEffect to avoid setting state during render
-  // Snapshot collections as Set to avoid MobX tracking inside effect
+  // Direct Set creation - MobX observer handles updates
   const collectionNames = minimongoStore.collectionNames
-  const collectionNamesSet = useMemo(
-    () => new Set(collectionNames),
-    [collectionNames],
-  )
+  const collectionNamesSet = new Set(collectionNames)
+
   useEffect(() => {
     const isActiveCollectionMissing =
       minimongoStore.activeCollection &&
@@ -87,7 +85,7 @@ export const Minimongo: FunctionComponent<Props> = observer(({ isVisible }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     minimongoStore.activeCollection,
-    collectionNamesSet,
+    collectionNames,
     minimongoStore.setActiveCollection,
   ])
 

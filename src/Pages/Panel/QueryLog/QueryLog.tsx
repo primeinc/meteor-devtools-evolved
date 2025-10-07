@@ -99,7 +99,7 @@ export const QueryLog: FunctionComponent<Props> = observer(({ isVisible }) => {
     null,
   )
 
-  // All filter state now lives in the store - no local state, no useMemo needed
+  // All filter state now lives in the store - no local state needed
   // MobX computed handles all derivations efficiently
   const processedLogs = minimongoStore.filteredMethodLogs
 

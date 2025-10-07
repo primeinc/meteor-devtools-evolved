@@ -27,12 +27,13 @@ test.describe('MDE2 Functional Tests', () => {
       ],
     })
 
-    const serviceWorkers = context.serviceWorkers()
-    if (serviceWorkers.length === 0) {
-      throw new Error('No service workers found - extension failed to load')
+    // Get service worker - wait if not immediately available
+    let [background] = context.serviceWorkers()
+    if (!background) {
+      background = await context.waitForEvent('serviceworker')
     }
 
-    const url = serviceWorkers[0].url()
+    const url = background.url()
     const match = url.match(/chrome-extension:\/\/([a-p]{32})/)
     if (!match) throw new Error(`Unable to parse extension ID from ${url}`)
     extensionId = match[1]

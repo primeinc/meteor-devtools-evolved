@@ -212,7 +212,8 @@ export const QueryLogWaterfall: FunctionComponent<Props> = observer(
     const containerRef = useRef<HTMLDivElement>(null)
 
     // Calculate time range and scale
-    const timeRange = useMemo(() => {
+    // Direct calculation - MobX observer handles re-render optimization
+    const getTimeRange = () => {
       if (logs.length === 0) return { start: 0, end: 0, duration: 0 }
 
       const timestamps = logs.map(l => l.timestamp)
@@ -221,32 +222,30 @@ export const QueryLogWaterfall: FunctionComponent<Props> = observer(
       const duration = end - start
 
       return { start, end, duration }
-    }, [logs])
+    }
+    const timeRange = getTimeRange()
 
     // Calculate pixel scale (pixels per millisecond)
     const pixelsPerMs = useMemo(() => {
-      // Base scale: fit timeline in 1000px width
-      const baseScale = 1000 / Math.max(timeRange.duration, 100)
+      // Fixed scale: 1px = 1ms (adjustable with zoom)
+      // This shows true time distribution instead of auto-fitting to viewport
+      const baseScale = 1
       return baseScale * zoom
-    }, [timeRange.duration, zoom])
+    }, [zoom])
 
     // Generate timeline ticks
-    const ticks = useMemo(() => {
-      const tickInterval = timeRange.duration > 1000 ? 100 : 10 // 100ms or 10ms intervals
-      const tickCount = Math.ceil(timeRange.duration / tickInterval)
-
-      return Array.from({ length: tickCount + 1 }, (_, i) => ({
-        time: i * tickInterval,
-        label: `${i * tickInterval}ms`,
-      }))
-    }, [timeRange.duration])
+    // Direct calculation - cheap operation, no need for useMemo
+    const tickInterval = timeRange.duration > 1000 ? 100 : 10 // 100ms or 10ms intervals
+    const tickCount = Math.ceil(timeRange.duration / tickInterval)
+    const ticks = Array.from({ length: tickCount + 1 }, (_, i) => ({
+      time: i * tickInterval,
+      label: `${i * tickInterval}ms`,
+    }))
 
     // Find correlated DDP messages
-    // Use untracked snapshot to avoid MobX reactions inside memo
-    const ddpCollectionLength = ddpStore.collection.length
-
-    const ddpCorrelations = useMemo(() => {
-      // Snapshot collection WITHOUT tracking reads
+    // Direct calculation - MobX observer handles updates
+    // Use untracked to avoid MobX tracking during correlation lookup
+    const getDDPCorrelations = () => {
       const ddpSnapshot = untracked(() => ddpStore.collection.slice())
       const correlations = new Map<number, any[]>()
 
@@ -265,8 +264,8 @@ export const QueryLogWaterfall: FunctionComponent<Props> = observer(
       })
 
       return correlations
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [logs, ddpCollectionLength])
+    }
+    const ddpCorrelations = getDDPCorrelations()
 
     const handleZoomIn = () => setZoom(prev => Math.min(prev * 1.5, 10))
     const handleZoomOut = () => setZoom(prev => Math.max(prev / 1.5, 0.5))

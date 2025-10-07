@@ -69,11 +69,18 @@ export interface IMenuItem {
 interface Props {
   tabs: ITab[]
   menu?: IMenuItem[]
+  activeKey?: string
   onChange?: (key: string) => void
 }
 
-export const TabBar: FunctionComponent<Props> = ({ tabs, menu, onChange }) => {
-  const [activeKey, setKey] = useState(tabs[0].key)
+export const TabBar: FunctionComponent<Props> = ({
+  tabs,
+  menu,
+  activeKey,
+  onChange,
+}) => {
+  const [internalActiveKey, setKey] = useState(tabs[0].key)
+  const currentActiveKey = activeKey ?? internalActiveKey
 
   const { navigationCollapse } = useBreakpoints()
 
@@ -121,7 +128,7 @@ export const TabBar: FunctionComponent<Props> = ({ tabs, menu, onChange }) => {
             tab.handler && tab.handler()
           }}
           className={classnames('mde-tab', {
-            active: activeKey === tab.key,
+            active: currentActiveKey === tab.key,
           })}
           icon={tab.icon}
           shine={tab.shine}

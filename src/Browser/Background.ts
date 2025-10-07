@@ -5,19 +5,25 @@ import { generateAuthToken } from '@/Utils/SecureId'
 const logger = createLogger('Background')
 const exportLogger = createLogger('Export')
 
-type Connection = Map<number, any>
+// Emit guaranteed log on SW activation for E2E testing
+console.info('[Background] Service worker activated')
 
-declare global {
-  interface Window {
-    connections: Connection
-  }
-}
+type Connection = Map<number, any>
 
 const Cache = new Map<number, string[]>()
 
 const connections: Connection = new Map()
 
-self.connections = connections
+// Store panel state for E2E testing
+const PanelState = new Map<number, any>()
+
+// Expose state for E2E testing
+// NOTE: These are exposed unconditionally because the service worker loads
+// before tests can set E2E_TEST flag. This is safe in production since
+// service workers don't have DOM access and can't be inspected from web pages.
+;(self as any).connections = connections
+;(self as any).Cache = Cache
+;(self as any).PanelState = PanelState
 
 // Port-based relay for exports (works around blob context issues)
 type TransferState = 'INIT' | 'IN_PROGRESS' | 'ABORTED' | 'FAILED' | 'COMPLETED'
@@ -666,6 +672,43 @@ const tabListener = () => {
     sender,
     sendResponse,
   ) {
+    // Health check ping for smoke tests
+    if (request.type === 'PING') {
+      sendResponse({ type: 'PONG' })
+      return
+    }
+
+    // Store panel state for E2E testing
+    if (request.type === 'PANEL_STATE') {
+      logger.debug(
+        'Storing panel state for tab:',
+        request.tabId,
+        'state:',
+        request.state,
+      )
+      PanelState.set(request.tabId, request.state)
+      sendResponse({ received: true })
+      return
+    }
+
+    // Handle DEVTOOLS_INIT_RECV for E2E testing (fires when devtools page loads)
+    if (request.type === 'DEVTOOLS_INIT_RECV') {
+      logger.info(
+        `[E2E] ${request.type} from ${request.source}: ${request.description}`,
+      )
+      sendResponse({ received: true })
+      return
+    }
+
+    // Handle METEOR_DEV_PANEL_READY for E2E testing (fires when React panel mounts)
+    if (request.type === 'METEOR_DEV_PANEL_READY') {
+      logger.info(
+        `[E2E] ${request.type} from ${request.source}: ${request.description}`,
+      )
+      sendResponse({ received: true })
+      return
+    }
+
     sendResponse({ foo: true })
 
     if (request.source !== 'meteor-devtools-evolved') return true

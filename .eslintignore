@@ -3,3 +3,4 @@
 /devapp/**
 /devapp-*/**
 /mongo-decimal-test-main/
+/tests/fixtures/**

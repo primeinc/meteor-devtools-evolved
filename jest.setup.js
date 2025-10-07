@@ -28,3 +28,9 @@ jest.mock(
   }),
   { virtual: true },
 )
+
+// Clean up timers and reactions after each test to prevent hanging
+afterEach(() => {
+  jest.clearAllTimers()
+  jest.useRealTimers()
+})

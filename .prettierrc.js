@@ -1,1 +1,4 @@
-module.exports = require('@tstt/eslint-config/.prettierrc.js')
+module.exports = {
+  ...require('@tstt/eslint-config/.prettierrc.js'),
+  endOfLine: 'auto'
+}

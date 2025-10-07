@@ -41,6 +41,21 @@ export class MinimongoStore {
   // Query logs (NEW)
   @observable methodLogs: MinimongoMethodLog[] = []
 
+  // Query log UI state - filters are observable so computed can react
+  @observable queryLogFilters: Record<string, boolean> = {
+    find: true,
+    findOne: true,
+    fetch: true,
+    forEach: true,
+    map: true,
+    count: true,
+    insert: true,
+    update: true,
+    remove: true,
+  }
+  @observable queryLogSearch: string = ''
+  @observable queryLogShowRedundant: boolean = false
+
   constructor() {
     makeObservable(this)
   }
@@ -97,18 +112,19 @@ export class MinimongoStore {
   @action
   syncDocuments() {
     if (this.activeCollection) {
-      return this.activeCollectionDocuments.setCollection(
-        this.collections[this.activeCollection],
-      )
+      const collection = this.collections[this.activeCollection]
+      if (collection) {
+        return this.activeCollectionDocuments.setCollection(collection)
+      }
+      // If active collection doesn't exist, reset it
+      this.activeCollection = null
     }
 
-    this.activeCollectionDocuments.setCollection(
-      Object.entries(this.collections).flatMap(
-        ([collectionName, documents]) => {
-          return documents
-        },
-      ),
+    // Set all documents when no active collection
+    const allDocuments = Object.entries(this.collections).flatMap(
+      ([collectionName, documents]) => documents || [],
     )
+    this.activeCollectionDocuments.setCollection(allDocuments)
   }
 
   @action
@@ -158,6 +174,88 @@ export class MinimongoStore {
     if (this.methodLogs.length > 1000) {
       this.methodLogs.shift()
     }
+  }
+
+  @action
+  setQueryLogFilter(method: string, enabled: boolean) {
+    this.queryLogFilters[method] = enabled
+  }
+
+  @action
+  setQueryLogSearch(search: string) {
+    this.queryLogSearch = search
+  }
+
+  @action
+  setQueryLogShowRedundant(show: boolean) {
+    this.queryLogShowRedundant = show
+  }
+
+  // Filter redundant operations (pure function, not an action)
+  private filterRedundantOperations(
+    logs: MinimongoMethodLog[],
+  ): MinimongoMethodLog[] {
+    const filtered: MinimongoMethodLog[] = []
+
+    for (let i = 0; i < logs.length; i++) {
+      const current = logs[i]
+      const next = logs[i + 1]
+
+      // Skip forEach that immediately follows fetch from same collection
+      if (current.method === 'forEach' && i > 0) {
+        const prev = logs[i - 1]
+        if (
+          prev.method === 'fetch' &&
+          prev.collectionName === current.collectionName &&
+          Math.abs(prev.timestamp - current.timestamp) < 5
+        ) {
+          continue // Skip this forEach
+        }
+      }
+
+      // Skip redundant count operations
+      if (
+        current.method === 'count' &&
+        next?.method === 'fetch' &&
+        current.collectionName === next.collectionName &&
+        Math.abs(current.timestamp - next.timestamp) < 5
+      ) {
+        continue // Skip the count, fetch is more useful
+      }
+
+      filtered.push(current)
+    }
+
+    return filtered
+  }
+
+  // Computed property for filtered query logs - NO array copies, just filtering
+  @computed
+  get filteredMethodLogs(): MinimongoMethodLog[] {
+    // Create plain array copy to prevent MobX tracking individual index accesses
+    // This avoids out-of-bounds warnings when filterRedundantOperations accesses logs[i+1]
+    let logs = this.methodLogs.slice()
+
+    // Filter out redundant operations unless user wants to see them
+    if (!this.queryLogShowRedundant) {
+      logs = this.filterRedundantOperations(logs)
+    }
+
+    // Apply method filters
+    logs = logs.filter(log => this.queryLogFilters[log.method])
+
+    // Apply search filter
+    if (this.queryLogSearch) {
+      const query = this.queryLogSearch.toLowerCase()
+      logs = logs.filter(
+        log =>
+          log.collectionName.toLowerCase().includes(query) ||
+          log.method.toLowerCase().includes(query) ||
+          JSON.stringify(log.selector).toLowerCase().includes(query),
+      )
+    }
+
+    return logs
   }
 
   @computed

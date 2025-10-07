@@ -62,7 +62,9 @@ const getRawStackTrace = (stackTraceLimit: number): string | null => {
 }
 
 export const sendLogMessage = (message: DDPLog) => {
-  const rawStack = getRawStackTrace(15)
+  // Stack trace capture is disabled by default for performance
+  // TODO: Add setting to enable stack traces when needed for debugging
+  const rawStack = null
 
   sendMessage('ddp-event', {
     ...message,

@@ -426,7 +426,9 @@ test.describe('MDE2 Integration Tests', () => {
     })
   })
 
-  test('Test 11: Stack Trace Capture - verifies call origin tracking', async () => {
+  test.skip('Test 11: Stack Trace Capture - verifies call origin tracking', async () => {
+    // NOTE: Stack trace capture is disabled by default for performance
+    // See extension.stacktrace.spec.ts for stack trace tests
     const page = await context.newPage()
 
     await page.goto(METEOR_APP, { waitUntil: 'domcontentloaded' })

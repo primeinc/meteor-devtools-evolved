@@ -154,6 +154,7 @@ export const MeteorAdapter = () => {
             })
           } catch (metadataError) {
             // Metadata extraction failed - app still works, just no tracking
+            console.debug(`MeteorAdapter metadata extraction failed for ${methodName}:`, metadataError);
           }
 
           return result

@@ -20,12 +20,13 @@ const connections: Connection = new Map()
 // Store panel state for E2E testing
 const PanelState = new Map<number, any>()
 
-// Expose state for E2E testing only
-if (typeof self !== 'undefined' && (self as any).E2E_TEST) {
-  (self as any).connections = connections
-  (self as any).Cache = Cache
-  (self as any).PanelState = PanelState
-}
+// Expose state for E2E testing
+// NOTE: These are exposed unconditionally because the service worker loads
+// before tests can set E2E_TEST flag. This is safe in production since
+// service workers don't have DOM access and can't be inspected from web pages.
+self.connections = connections
+self.Cache = Cache
+self.PanelState = PanelState
 
 // Port-based relay for exports (works around blob context issues)
 type TransferState = 'INIT' | 'IN_PROGRESS' | 'ABORTED' | 'FAILED' | 'COMPLETED'
@@ -682,8 +683,18 @@ const tabListener = () => {
 
     // Store panel state for E2E testing
     if (request.type === 'PANEL_STATE') {
-      logger.debug('Storing panel state for tab:', request.tabId, 'state:', request.state)
-      console.log('[Background] PANEL_STATE received for tab:', request.tabId, 'DDP messages:', request.state?.ddp?.messageCount)
+      logger.debug(
+        'Storing panel state for tab:',
+        request.tabId,
+        'state:',
+        request.state,
+      )
+      console.log(
+        '[Background] PANEL_STATE received for tab:',
+        request.tabId,
+        'DDP messages:',
+        request.state?.ddp?.messageCount,
+      )
       PanelState.set(request.tabId, request.state)
       sendResponse({ received: true })
       return

@@ -49,7 +49,6 @@ test.describe('Content Script Injection', () => {
   test('Content script loads and sets extension marker', async () => {
     const page = await context.newPage()
     await page.goto(METEOR_APP, { waitUntil: 'domcontentloaded' })
-    await page.waitForTimeout(2000)
 
     // Verify extension injected successfully
     const hasExtensionMarker = await page.evaluate(() => {
@@ -62,7 +61,6 @@ test.describe('Content Script Injection', () => {
   test('Extension detects Meteor on the page', async () => {
     const page = await context.newPage()
     await page.goto(METEOR_APP, { waitUntil: 'domcontentloaded' })
-    await page.waitForTimeout(2000)
 
     // Verify Meteor was detected
     const meteorDetected = await page.evaluate(() => {
@@ -75,7 +73,6 @@ test.describe('Content Script Injection', () => {
   test('MeteorAdapter instruments Minimongo Collection methods', async () => {
     const page = await context.newPage()
     await page.goto(METEOR_APP, { waitUntil: 'domcontentloaded' })
-    await page.waitForTimeout(3000)
 
     // Check if Minimongo Collection prototype was instrumented
     const isInstrumented = await page.evaluate(() => {
@@ -96,7 +93,6 @@ test.describe('Content Script Injection', () => {
   test('Injection does not break Meteor.call() functionality', async () => {
     const page = await context.newPage()
     await page.goto(METEOR_APP, { waitUntil: 'domcontentloaded' })
-    await page.waitForTimeout(3000)
 
     // Attempt a Meteor call and verify it completes
     const callResult = await page.evaluate(() => {
@@ -117,7 +113,6 @@ test.describe('Content Script Injection', () => {
   test('Injection does not break Minimongo find() operations', async () => {
     const page = await context.newPage()
     await page.goto(METEOR_APP, { waitUntil: 'domcontentloaded' })
-    await page.waitForTimeout(4000)
 
     // Perform a find operation - create a test collection to ensure we have one
     const findResult = await page.evaluate(() => {
@@ -157,7 +152,6 @@ test.describe('Content Script Injection', () => {
   test('Injection does not break subscription reactivity', async () => {
     const page = await context.newPage()
     await page.goto(METEOR_APP, { waitUntil: 'domcontentloaded' })
-    await page.waitForTimeout(3000)
 
     // Verify subscriptions are working
     const subscriptionStatus = await page.evaluate(() => {
@@ -180,7 +174,6 @@ test.describe('Content Script Injection', () => {
   test('Extension message receiver function is registered', async () => {
     const page = await context.newPage()
     await page.goto(METEOR_APP, { waitUntil: 'domcontentloaded' })
-    await page.waitForTimeout(2000)
 
     // Check that the message receiver is registered
     const hasReceiver = await page.evaluate(() => {
@@ -203,7 +196,6 @@ test.describe('Content Script Injection', () => {
     })
 
     await page.goto(METEOR_APP, { waitUntil: 'domcontentloaded' })
-    await page.waitForTimeout(3000)
 
     // Find injection and React mount logs
     const injectionLog = logs.find(log => log.includes('Inject.ts loaded'))
@@ -224,7 +216,6 @@ test.describe('Content Script Injection', () => {
 
     // Navigate to a non-Meteor page
     await page.goto('about:blank')
-    await page.waitForTimeout(1000)
 
     // Verify extension didn't inject on non-Meteor page
     const injectedOnBlankPage = await page.evaluate(() => {
@@ -240,9 +231,6 @@ test.describe('Content Script Injection', () => {
 
     await page1.goto(METEOR_APP, { waitUntil: 'domcontentloaded' })
     await page2.goto(METEOR_APP, { waitUntil: 'domcontentloaded' })
-
-    await page1.waitForTimeout(2000)
-    await page2.waitForTimeout(2000)
 
     // Verify injection on both tabs
     const injected1 = await page1.evaluate(() => {
@@ -262,7 +250,6 @@ test.describe('Content Script Injection', () => {
   test('Extension survives page navigation and re-injection', async () => {
     const page = await context.newPage()
     await page.goto(METEOR_APP, { waitUntil: 'domcontentloaded' })
-    await page.waitForTimeout(2000)
 
     const injected1 = await page.evaluate(() => {
       return (window as any).__meteor_devtools_evolved === true
@@ -270,7 +257,6 @@ test.describe('Content Script Injection', () => {
 
     // Navigate to another page on same domain
     await page.reload({ waitUntil: 'domcontentloaded' })
-    await page.waitForTimeout(2000)
 
     const injected2 = await page.evaluate(() => {
       return (window as any).__meteor_devtools_evolved === true
@@ -283,7 +269,6 @@ test.describe('Content Script Injection', () => {
   test('Cursor instrumentation does not break chained operations', async () => {
     const page = await context.newPage()
     await page.goto(METEOR_APP, { waitUntil: 'domcontentloaded' })
-    await page.waitForTimeout(4000)
 
     // Test chained cursor operations using a test collection
     const chainedResult = await page.evaluate(() => {

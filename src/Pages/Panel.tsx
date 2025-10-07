@@ -82,10 +82,21 @@ const PanelObserverComponent: FunctionComponent = observer(() => {
     // Expose PanelStore to window for E2E test access
     ;(window as any).PanelStore = store
 
-    // Send PANEL_READY signal
-    browser.runtime.sendMessage({ type: 'PANEL_READY' }).catch(err => {
-      console.debug('PANEL_READY signal failed (expected if not in test):', err)
-    })
+    // Send METEOR_DEV_PANEL_READY signal
+    browser.runtime
+      .sendMessage({
+        type: 'METEOR_DEV_PANEL_READY',
+        source: 'Panel.tsx',
+        timestamp: Date.now(),
+        description:
+          'React panel mounted, stores initialized, ready to receive data',
+      })
+      .catch(err => {
+        console.debug(
+          'METEOR_DEV_PANEL_READY signal failed (expected if not in test):',
+          err,
+        )
+      })
 
     // Wait for stores to initialize, then send initial panel state
     const sendPanelState = () => {

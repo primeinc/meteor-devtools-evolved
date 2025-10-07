@@ -67,11 +67,11 @@ export const test = base.extend<ExtensionFixtures>({
   },
 
   testPage: async ({ context, serviceWorker }, use) => {
-    // Set up listener for PANEL_READY
+    // Set up listener for DEVTOOLS_INIT_RECV
     const panelReadyPromise = serviceWorker.evaluate(() => {
       return new Promise(resolve => {
         chrome.runtime.onMessage.addListener(msg => {
-          if (msg.type === 'PANEL_READY') {
+          if (msg.type === 'DEVTOOLS_INIT_RECV') {
             resolve(true)
           }
         })
@@ -110,10 +110,30 @@ test.describe('MDE2 DevTools Panel - Fixture Pattern', () => {
     })
     console.log('Meteor app ready')
 
+    // Set up listener for DDP messages before triggering activity
+    const messageReceivedPromise = serviceWorker.evaluate(() => {
+      return new Promise<void>(resolve => {
+        const listener = (message: any) => {
+          if (
+            message.source === 'meteor-devtools-evolved' &&
+            message.eventType === 'ddp-event'
+          ) {
+            chrome.runtime.onMessage.removeListener(listener)
+            resolve()
+          }
+        }
+        chrome.runtime.onMessage.addListener(listener)
+        // Safety timeout
+        setTimeout(() => resolve(), 5000)
+      })
+    })
+
     // Trigger DDP activity
     console.log('Clicking String button to trigger Meteor.call()...')
     await testPage.click('button:has-text("String")')
-    await testPage.waitForTimeout(2000)
+
+    // Wait for message to arrive
+    await messageReceivedPromise
 
     // Query background service worker Cache for DDP messages
     const cacheData = await serviceWorker.evaluate(() => {
@@ -127,7 +147,7 @@ test.describe('MDE2 DevTools Panel - Fixture Pattern', () => {
           allEntries.push({
             tabId,
             messageCount: messages.length,
-            messages: messages.slice(0, 5), // First 5 messages
+            messages: messages.slice(0, 1), // Just first message as sample
           })
         })
       }
@@ -138,12 +158,23 @@ test.describe('MDE2 DevTools Panel - Fixture Pattern', () => {
       }
     })
 
-    console.log('Cache data:', JSON.stringify(cacheData, null, 2))
+    console.log(
+      'Cache:',
+      `${cacheData.cacheSize} tabs,`,
+      cacheData.allEntries.map((e: any) => `${e.messageCount} msgs`).join(', '),
+    )
     console.log(
       'Tabs with cached messages:',
       cacheData.allEntries.map(
         (e: any) => `Tab ${e.tabId}: ${e.messageCount} messages`,
       ),
+    )
+    console.log(
+      'Sample messages:',
+      cacheData.allEntries
+        .filter((e: any) => e.messages.length > 0)
+        .map((e: any) => JSON.stringify(e.messages[0]))
+        .join('\n'),
     )
 
     // Verify we have cached messages
@@ -174,10 +205,36 @@ test.describe('MDE2 DevTools Panel - Fixture Pattern', () => {
     // Trigger multiple method calls
     for (let i = 0; i < 3; i++) {
       await testPage.click('button:has-text("String")')
-      await testPage.waitForTimeout(500)
     }
 
-    await testPage.waitForTimeout(1000)
+    // Wait for all 6 messages (3 requests + 3 responses) to arrive
+    await serviceWorker.evaluate(() => {
+      return new Promise<void>(resolve => {
+        const checkMessages = () => {
+          const cache = (self as any).Cache
+          if (!cache) return
+
+          let maxCount = 0
+          cache.forEach((messages: any[], tabId: number) => {
+            const ddpMessages = messages.filter(
+              (m: any) => m.eventType === 'ddp-event',
+            )
+            if (ddpMessages.length > maxCount) {
+              maxCount = ddpMessages.length
+            }
+          })
+
+          if (maxCount >= 6) {
+            resolve()
+          } else {
+            setTimeout(checkMessages, 100)
+          }
+        }
+        checkMessages()
+        // Fail after 5 seconds
+        setTimeout(() => resolve(), 5000)
+      })
+    })
 
     const cacheData = await serviceWorker.evaluate(() => {
       const cache = (self as any).Cache

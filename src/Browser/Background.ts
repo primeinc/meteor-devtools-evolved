@@ -688,8 +688,20 @@ const tabListener = () => {
       return
     }
 
-    // Handle PANEL_READY for E2E testing
-    if (request.type === 'PANEL_READY') {
+    // Handle DEVTOOLS_INIT_RECV for E2E testing (fires when devtools page loads)
+    if (request.type === 'DEVTOOLS_INIT_RECV') {
+      logger.info(
+        `[E2E] ${request.type} from ${request.source}: ${request.description}`,
+      )
+      sendResponse({ received: true })
+      return
+    }
+
+    // Handle METEOR_DEV_PANEL_READY for E2E testing (fires when React panel mounts)
+    if (request.type === 'METEOR_DEV_PANEL_READY') {
+      logger.info(
+        `[E2E] ${request.type} from ${request.source}: ${request.description}`,
+      )
       sendResponse({ received: true })
       return
     }

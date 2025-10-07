@@ -46,9 +46,6 @@ test.describe('MDE2 Functional Tests', () => {
     const page = await context.newPage()
     await page.goto(METEOR_APP, { waitUntil: 'domcontentloaded' })
 
-    // Wait for page to fully load
-    await page.waitForTimeout(2000)
-
     // Check if DDP connection was established by looking for connect message
     // In a real test, we'd inspect the DevTools panel UI or message store
     // For now, verify the page loaded and has Meteor

@@ -15,3 +15,7 @@ yarn-error.log
 .claude/settings.local.json
 .claude/snapshots/
 .claude/archive/
+
+# Test artifacts
+test-results/
+.danger/

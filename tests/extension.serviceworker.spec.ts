@@ -53,16 +53,16 @@ test.describe('Service Worker Communication', () => {
     // complete message flow works correctly
   })
 
-  test('Service Worker responds to PANEL_READY signal', async () => {
+  test('Service Worker responds to DEVTOOLS_INIT_RECV signal', async () => {
     const sw = context.serviceWorkers()[0]
 
-    // Set up listener for PANEL_READY in service worker
+    // Set up listener for DEVTOOLS_INIT_RECV in service worker
     const readyResponsePromise = sw.evaluate(() => {
       return new Promise<boolean>(resolve => {
         const timeout = setTimeout(() => resolve(false), 10000)
 
         chrome.runtime.onMessage.addListener(msg => {
-          if (msg?.type === 'PANEL_READY') {
+          if (msg?.type === 'DEVTOOLS_INIT_RECV') {
             clearTimeout(timeout)
             resolve(true)
           }
@@ -73,9 +73,8 @@ test.describe('Service Worker Communication', () => {
     // Open page which will trigger panel initialization
     const page = await context.newPage()
     await page.goto(METEOR_APP, { waitUntil: 'domcontentloaded' })
-    await page.waitForTimeout(3000)
 
-    // Verify service worker saw the PANEL_READY message
+    // Verify service worker saw the DEVTOOLS_INIT_RECV message
     const sawReady = await readyResponsePromise
     expect(sawReady).toBe(true)
   })
@@ -97,7 +96,6 @@ test.describe('Service Worker Communication', () => {
 
     const page = await context.newPage()
     await page.goto(METEOR_APP, { waitUntil: 'domcontentloaded' })
-    await page.waitForTimeout(3000)
 
     // Track message flow through the entire chain
     const messageFlowPromise = sw.evaluate(() => {
@@ -123,8 +121,6 @@ test.describe('Service Worker Communication', () => {
       // Trigger DDP method call
       Meteor.call('echo', 'test')
     })
-
-    await page.waitForTimeout(3000)
 
     // Verify message flowed through to service worker
     const messageFlow = await messageFlowPromise

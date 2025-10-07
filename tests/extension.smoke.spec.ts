@@ -71,25 +71,25 @@ test.describe('MV3 Extension Smoke Test', () => {
   })
 
   test('DevTools panel boots and signals ready', async () => {
-    // Set up listener for PANEL_READY in service worker BEFORE opening page
+    // Set up listener for DEVTOOLS_INIT_RECV in service worker BEFORE opening page
     const sw = context.serviceWorkers()[0]
     const readyPromise = sw.evaluate(
       () =>
         new Promise<boolean>(resolve => {
           const timer = setTimeout(() => {
-            console.log('PANEL_READY timeout after 10s')
+            console.log('DEVTOOLS_INIT_RECV timeout after 10s')
             resolve(false)
           }, 10000)
           chrome.runtime.onMessage.addListener(function onMsg(msg) {
             console.log('Service worker received message:', msg)
-            if (msg?.type === 'PANEL_READY') {
-              console.log('PANEL_READY received!')
+            if (msg?.type === 'DEVTOOLS_INIT_RECV') {
+              console.log('DEVTOOLS_INIT_RECV received!')
               clearTimeout(timer)
               chrome.runtime.onMessage.removeListener(onMsg)
               resolve(true)
             }
           })
-          console.log('Service worker listening for PANEL_READY...')
+          console.log('Service worker listening for DEVTOOLS_INIT_RECV...')
         }),
     )
 
@@ -98,9 +98,8 @@ test.describe('MV3 Extension Smoke Test', () => {
     await page.goto(METEOR_APP, { waitUntil: 'domcontentloaded' })
 
     // Give DevTools and panel time to mount
-    await page.waitForTimeout(3000)
 
-    // Wait for PANEL_READY signal
+    // Wait for DEVTOOLS_INIT_RECV signal
     const sawReady = await readyPromise
     expect(sawReady).toBeTruthy()
   })

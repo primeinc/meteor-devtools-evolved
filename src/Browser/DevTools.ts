@@ -41,7 +41,19 @@ browser.devtools.panels
     })
   })
 
-// Signal that DevTools page loaded and panel was registered (for E2E tests)
-browser.runtime.sendMessage({ type: 'PANEL_READY' }).catch(err => {
-  console.debug('PANEL_READY signal failed (expected if not in test):', err)
-})
+// Signal that DevTools page loaded and panel was created (for E2E tests)
+// Note: Panel.tsx will send METEOR_DEV_PANEL_READY when the React app actually mounts
+browser.runtime
+  .sendMessage({
+    type: 'DEVTOOLS_INIT_RECV',
+    source: 'DevTools.ts',
+    timestamp: Date.now(),
+    description:
+      'DevTools script loaded, panel created but iframe not yet mounted',
+  })
+  .catch(err => {
+    console.debug(
+      'DEVTOOLS_INIT_RECV signal failed (expected if not in test):',
+      err,
+    )
+  })

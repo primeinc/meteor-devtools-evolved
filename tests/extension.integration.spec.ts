@@ -66,7 +66,8 @@ test.describe('MDE2 Integration Tests', () => {
   }
 
   /**
-   *
+   * Helper: Retrieves captured messages from the page context.
+   * @param page The Playwright Page instance to extract messages from.
    */
   async function getCapturedMessages(page: Page) {
     return await page.evaluate(() => {

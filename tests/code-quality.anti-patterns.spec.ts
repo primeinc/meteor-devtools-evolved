@@ -282,7 +282,7 @@ test.describe('MobX + React Anti-patterns', () => {
     violations.forEach(v => console.log(`  - ${v}`))
 
     // We expect EXACTLY 8 violations (one per file except AntiPattern5 has 2)
-    // If this fails your code is shit fix it
+    // If this fails, the anti-pattern detector is not working as expected. Please investigate and fix.
     expect(violations.length).toBe(8)
   })
 })

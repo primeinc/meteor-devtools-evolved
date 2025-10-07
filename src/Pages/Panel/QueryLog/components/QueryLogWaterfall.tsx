@@ -265,6 +265,7 @@ export const QueryLogWaterfall: FunctionComponent<Props> = observer(
       })
 
       return correlations
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [logs, ddpCollectionLength])
 
     const handleZoomIn = () => setZoom(prev => Math.min(prev * 1.5, 10))

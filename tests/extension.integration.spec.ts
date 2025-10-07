@@ -259,7 +259,7 @@ test.describe('MDE2 Integration Tests', () => {
     // - Client-side insert() on subscribed collections requires allow/deny rules.
     // - The test app doesn't have allow rules configured.
     // - Testing insert tracking would require server-side methods or local collections.
-    // 
+    //
     // To enable this test:
     // - Add appropriate allow rules to RandomCollection in the test app (e.g., RandomCollection.allow({ insert: () => true })).
     // - Alternatively, implement a server-side Meteor method to perform the insert, or use a local (client-only) collection for testing.

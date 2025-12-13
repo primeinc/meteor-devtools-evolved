@@ -17,10 +17,13 @@ export const Navigation: FunctionComponent = observer(() => {
   const analytics = useAnalytics()
 
   useEffect(() => {
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       panelStore.settingStore.updateRepositoryData()
     }, REPO_DATA_FETCH_DELAY_MS)
-  }, [])
+
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panelStore.settingStore.updateRepositoryData])
 
   const { repositoryData } = panelStore.settingStore
 
@@ -46,6 +49,11 @@ export const Navigation: FunctionComponent = observer(() => {
           data: null,
         })
       },
+    },
+    {
+      key: PanelPage.QUERYLOG,
+      content: 'Query Log',
+      icon: 'history',
     },
     {
       key: PanelPage.SUBSCRIPTIONS,
@@ -141,6 +149,7 @@ export const Navigation: FunctionComponent = observer(() => {
       <TabBar
         tabs={tabs}
         menu={menu}
+        activeKey={panelStore.selectedTabId}
         onChange={key => panelStore.setSelectedTabId(key)}
       />
     </div>

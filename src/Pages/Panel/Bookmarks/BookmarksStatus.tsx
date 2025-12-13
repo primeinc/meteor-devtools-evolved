@@ -17,7 +17,8 @@ export const BookmarksStatus: FunctionComponent = observer(() => {
   const activeFilters = store.settingStore.activeFilters
   const setFilter = useCallback(
     (type, isEnabled) => settingStore.setFilter(type, isEnabled),
-    [settingStore],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [settingStore.setFilter],
   )
   const collectionLength = bookmarkStore.collection.length
   const { pagination } = bookmarkStore

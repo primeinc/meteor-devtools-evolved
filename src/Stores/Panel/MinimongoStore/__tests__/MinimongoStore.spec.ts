@@ -17,6 +17,7 @@ jest.mock('@/Stores/PanelStore', () => ({
 }))
 
 import { MinimongoStore } from '../index'
+import { PanelStore } from '@/Stores/PanelStore'
 
 describe('MinimongoStore - Method Logs', () => {
   let store: MinimongoStore
@@ -97,7 +98,7 @@ describe('MinimongoStore - Method Logs', () => {
       )
 
       // Reset for other tests
-      mockPanelStore.PanelStore.settingStore.isQueryStackTraceEnabled = false
+      PanelStore.settingStore.isQueryStackTraceEnabled = false
     })
   })
 

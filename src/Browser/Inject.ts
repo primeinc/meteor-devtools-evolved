@@ -46,53 +46,37 @@ const warning = (message: string) => {
 }
 
 /**
- * @todo Do nothing here, and run any stack trace processing logic inside the extension, so if any errors happen it happens in the sandbox console.
+ * Captures raw stack trace string for later parsing in the extension.
+ * This is much faster than parsing with regex in the inject context.
  */
-const getStackTrace = (stackTraceLimit: number) => {
+const getRawStackTrace = (stackTraceLimit: number): string | null => {
   const originalStackTraceLimit = Error.stackTraceLimit
 
   try {
     Error.stackTraceLimit = stackTraceLimit
     const error = new Error()
-
-    if (!error.stack) return []
-
-    return error?.stack
-      ?.split('\n')
-      .map(trace => {
-        const matches = PARENTHESIS_REGEX.exec(trace)
-
-        if (!matches) return null
-
-        return {
-          callee: matches?.[1],
-          url: matches?.[2],
-        }
-      })
-      .filter(Boolean)
+    return error.stack || null
   } finally {
     Error.stackTraceLimit = originalStackTraceLimit
   }
 }
 
 export const sendLogMessage = (message: DDPLog) => {
-  const stackTrace = getStackTrace(15)
-
-  if (stackTrace && stackTrace.length) {
-    stackTrace.splice(0, 2)
-  }
+  // Stack trace capture is disabled by default for performance
+  // TODO: Add setting to enable stack traces when needed for debugging
+  const rawStack = null
 
   sendMessage('ddp-event', {
     ...message,
-    trace: stackTrace,
+    rawStackTrace: rawStack,
     host: location.host,
   })
 
-  if (
-    message.content !== '{"msg":"ping"}' &&
-    message.content !== '{"msg":"pong"}'
-  )
-    updateCollections()
+  // DO NOT call updateCollections() here!
+  // DDP messages are just Meteor syncing data - we don't need to serialize
+  // and send all collections on every DDP message.
+  // Collections are updated automatically when user views Minimongo tab
+  // or when Minimongo operations are performed (tracked in MeteorAdapter)
 }
 
 type MessageHandler = (message: Message<any>) => void

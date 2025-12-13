@@ -123,8 +123,21 @@ export async function saveBlob(
     willUseRelay: forceRelay || inPanel,
   })
   const mustRelay = forceRelay || inPanel
-  if (mustRelay)
-    return downloadViaRelay(blob, filename, mime, signal, onProgress)
+  logger.info('saveBlob decision:', { mustRelay, forceRelay, inPanel, filename })
+  
+  if (mustRelay) {
+    logger.info('Starting relay download...')
+    try {
+      await downloadViaRelay(blob, filename, mime, signal, onProgress)
+      logger.info('Relay download initiated successfully')
+    } catch (err) {
+      logger.error('Relay download failed:', err)
+      throw err
+    }
+    return
+  }
+  
+  logger.info('Starting anchor download...')
   return tryAnchorDownload(blob, filename)
 }
 

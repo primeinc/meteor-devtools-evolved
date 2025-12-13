@@ -7,5 +7,5 @@ export const useResize = (onResize: () => void) => {
     return () => {
       window.removeEventListener('resize', onResize)
     }
-  }, [])
+  }, [onResize])
 }

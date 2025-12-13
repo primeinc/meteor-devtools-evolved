@@ -24,6 +24,15 @@ jest.mock('@/Stores/PanelStore', () => ({
           ready: { timestamp: 1500 },
         },
       })),
+      getSubscriptionInit: jest.fn(sub => ({
+        timestamp: 1000,
+        id: sub.id,
+      })),
+      getSubscriptionReady: jest.fn(sub => ({
+        timestamp: 1500,
+        id: sub.id,
+      })),
+      collection: [],
     },
   },
 }))

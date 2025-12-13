@@ -134,5 +134,22 @@ Bridge.register('meteor-data-performance', (message: Message<CallData>) => {
 })
 
 Bridge.register('minimongo-method', (message: Message<any>) => {
-  PanelStore.minimongoStore.addMethodLog(message.data)
+  const { data } = message
+    if (typeof data.selector === 'string') {
+    try {
+      data.selector = JSON.parse(data.selector)
+    } catch (e) {
+      // Keep as string on error
+    }
+  }
+
+  if (typeof data.options === 'string') {
+    try {
+      data.options = JSON.parse(data.options)
+    } catch (e) {
+      // Keep as string on error
+    }
+  }
+
+  PanelStore.minimongoStore.addMethodLog(data)
 })

@@ -7,11 +7,26 @@ interface Window {
   __meteor_devtools_evolved: boolean
 
   __meteor_devtools_evolved_receiveMessage(message: Message<any>): void
+
+  // DevTools panel window extensions
+  PanelStore?: any
+  __sendStateToBackground?: () => void
+  PanelState?: Map<number, any>
+
+  // Background service worker extensions (exposed for testing)
+  Cache?: Map<number, string[]>
+  connections?: Map<number, any>
 }
 
 declare namespace Meteor {
   const connection: any
   const gitCommitHash: string | undefined | null
+}
+
+declare namespace Mongo {
+  interface CollectionStatic {
+    Cursor?: any
+  }
 }
 
 type MessageSource = 'meteor-devtools-evolved'
@@ -67,7 +82,8 @@ interface DDPLog {
   id: string
   content: string
   parsedContent?: DDPLogContent
-  trace?: StackTrace[]
+  trace?: StackTrace[] // Parsed stack trace (lazily computed from rawStackTrace)
+  rawStackTrace?: string | null // Raw stack string from Error.stack
   isInbound?: boolean
   isOutbound?: boolean
   timestamp?: number

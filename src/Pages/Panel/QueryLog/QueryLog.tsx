@@ -7,6 +7,7 @@ import { QueryLogDetail } from './components/QueryLogDetail'
 import styled from 'styled-components'
 import { createLogger } from '@/Utils/Logger'
 import { MinimongoMethodLog } from '@/Stores/Panel/MinimongoStore/types'
+import { saveBlob } from '@/Pages/Panel/Minimongo/services/ExportService'
 import { Button, InputGroup, Tag, Switch, Tooltip } from '@blueprintjs/core'
 import { StatusBar } from '@/Components/StatusBar'
 
@@ -261,15 +262,15 @@ export const QueryLog: FunctionComponent<Props> = observer(({ isVisible }) => {
               minimal
               icon='export'
               text='Export'
-              onClick={() => {
+              onClick={async () => {
                 const data = JSON.stringify(processedLogs, null, 2)
                 const blob = new Blob([data], { type: 'application/json' })
-                const url = URL.createObjectURL(blob)
-                const a = document.createElement('a')
-                a.href = url
-                a.download = `query-log-${Date.now()}.json`
-                a.click()
-                URL.revokeObjectURL(url)
+                await saveBlob(
+                  blob,
+                  `query-log-${Date.now()}.json`,
+                  new AbortController().signal,
+                  () => {},
+                )
               }}
             />
           </div>

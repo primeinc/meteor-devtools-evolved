@@ -147,8 +147,11 @@ export const MeteorAdapter = () => {
             sendMessage('minimongo-method', {
               collectionName,
               method: methodName,
-              selector,
-              options,
+              selector: JSON.stringify(
+                selector,
+                JSONUtils.getCircularReplacer(),
+              ),
+              options: JSON.stringify(options, JSONUtils.getCircularReplacer()),
               runtime,
               timestamp: startMs,
             })

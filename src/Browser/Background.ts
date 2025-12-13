@@ -237,7 +237,7 @@ async function downloadViaOffscreen(
         // We must track URL->filename mapping BEFORE calling download()
         downloadUrlToFilename.set(url, fn)
 
-        chrome.downloads.download({ url, filename: fn, saveAs: false }, id => {
+        chrome.downloads.download({ url, filename: fn, saveAs: true }, id => {
           if (chrome.runtime.lastError) {
             downloadUrlToFilename.delete(url) // Cleanup on error
             reject(new Error(chrome.runtime.lastError.message))
@@ -251,7 +251,9 @@ async function downloadViaOffscreen(
         reject(new Error(msg.payload?.message || 'Offscreen download failed'))
       }
     }
+
     chrome.runtime.onMessage.addListener(listener)
+    logger.info('Sending OFFSCREEN_DOWNLOAD message to offscreen document', { filename, mime, base64Len: base64.length })
     chrome.runtime.sendMessage({
       type: 'OFFSCREEN_DOWNLOAD',
       payload: { filename, mime, base64 },
@@ -259,6 +261,7 @@ async function downloadViaOffscreen(
     // Timeout after 30s
     setTimeout(() => {
       chrome.runtime.onMessage.removeListener(listener)
+      logger.error('Offscreen download timed out waiting for response')
       reject(new Error('Offscreen download timeout'))
     }, OFFSCREEN_DOWNLOAD_TIMEOUT_MS)
   })
@@ -455,81 +458,73 @@ const panelListener = () => {
               return true
             }
 
+            // CRITICAL ARCHITECTURAL DECISION:
+            // We MUST use the Offscreen API to create and download the Blob.
+            //
+            // WHY NOT URL.createObjectURL() IN SERVICE WORKER?
+            // 1. Although some browsers/polyfills might expose it, Chrome MV3 Service Workers
+            //    have a KNOWN BUG/LIMITATION where `chrome.downloads.download({ url: blobUrl, filename })`
+            //    IGNORES the `filename` parameter if the blob was created in the SW.
+            //    Result: User gets a random GUID filename (e.g. "c454a00a-...") instead of "my-export.json".
+            //
+            // 2. The `onDeterminingFilename` workaround (mapping URL->Filename) helps, but is
+            //    RACY and FLAKY in Service Worker contexts because the blob resolving happens
+            //    on a different thread/process than the download manager's filename determination.
+            //
+            // 3. Offscreen Documents provide a real DOM environment. Creating the Blob URL there
+            //    and triggering the download flow respects the filename 100% of the time.
+            //
+            // DO NOT UNCOMMENT OR RE-ENABLE THE DIRECT PATH BELOW UNLESS CHROME FIXES THIS.
+            /*
             if (
               typeof URL !== 'undefined' &&
               typeof URL.createObjectURL === 'function'
             ) {
-              const url = URL.createObjectURL(blob)
-              
-              // CRITICAL FIX: Chrome ignores `filename` param for blob: URLs in Service Workers
-              // We must track URL->filename mapping BEFORE calling download()
-              // See commit 80596ea for context
-              downloadUrlToFilename.set(url, filename)
-
-              chrome.downloads.download(
-                { url, filename, saveAs: false },
-                id => {
-                  // Revoke URL after delay to allow download to complete
-                  setTimeout(
-                    () => URL.revokeObjectURL(url),
-                    URL_REVOKE_DELAY_MS,
-                  )
-                  // Check for download errors
-                  if (chrome.runtime.lastError) {
-                    downloadUrlToFilename.delete(url) // Cleanup on error
-                    exportLogger.error(
-                      'Download failed:',
-                      chrome.runtime.lastError,
-                    )
-                    markFailed(payload.id, 'DOWNLOAD_ERROR', port)
-                    return
-                  }
-                  // Success - map is cleaned up in onDeterminingFilename listener (or eventually by GC if missed)
-                  done(id)
-                },
-              )
-            } else {
-              // Prefer offscreen doc for Blob/URL work in MV3
-              try {
-                await downloadViaOffscreen(
-                  blob,
-                  filename,
-                  t.mime || 'application/octet-stream',
-                )
-                done()
-              } catch (err) {
-                exportLogger.error(
-                  'Offscreen download failed, trying data URL:',
-                  err,
-                )
-                // Only use data URL for small files
-                if (blob.size < MAX_DATA_URL_SIZE) {
-                  const bytes = new Uint8Array(await blob.arrayBuffer())
-                  // IMPORTANT: Use uint8ArrayToBase64() - do NOT use TextDecoder('latin1')!
-                  const base64 = uint8ArrayToBase64(bytes)
-                  const dataUrl = `data:${
-                    t.mime || 'application/octet-stream'
-                  };base64,${base64}`
-                  chrome.downloads.download(
-                    { url: dataUrl, filename, saveAs: false },
-                    id => {
-                      // Check for download errors
-                      if (chrome.runtime.lastError) {
-                        exportLogger.error(
-                          'Data URL download failed:',
-                          chrome.runtime.lastError,
-                        )
-                        markFailed(payload.id, 'DOWNLOAD_ERROR', port)
-                        return
-                      }
-                      done(id)
-                    },
-                  )
-                } else {
-                  markFailed(payload.id, 'FILE_TOO_LARGE_FOR_DATAURL', port)
-                }
-              }
+               // ... (Legacy flaky code removed)
             }
+            */
+
+             // Prefer offscreen doc for Blob/URL work in MV3
+             try {
+               await downloadViaOffscreen(
+                 blob,
+                 filename,
+                 t.mime || 'application/octet-stream',
+               )
+               done()
+             } catch (err) {
+               exportLogger.error(
+                 'Offscreen download failed, trying data URL fallback:',
+                 err,
+               )
+               // Fallback: Data URL (reliable filename, but size limited)
+               // Only use data URL for small files (< 64MB typically, safe limit 4MB here)
+               if (blob.size < MAX_DATA_URL_SIZE) {
+                 const bytes = new Uint8Array(await blob.arrayBuffer())
+                 // IMPORTANT: Use uint8ArrayToBase64() - do NOT use TextDecoder('latin1')!
+                 const base64 = uint8ArrayToBase64(bytes)
+                 const dataUrl = `data:${
+                   t.mime || 'application/octet-stream'
+                 };base64,${base64}`
+                 chrome.downloads.download(
+                   { url: dataUrl, filename, saveAs: false },
+                   id => {
+                     // Check for download errors
+                     if (chrome.runtime.lastError) {
+                       exportLogger.error(
+                         'Data URL download failed:',
+                         chrome.runtime.lastError,
+                       )
+                       markFailed(payload.id, 'DOWNLOAD_ERROR', port)
+                       return
+                     }
+                     done(id)
+                   },
+                 )
+               } else {
+                 markFailed(payload.id, 'FILE_TOO_LARGE_FOR_DATAURL', port)
+               }
+             }
           }
           return
         }
@@ -622,8 +617,7 @@ const handleConsole = (
 }
 
 const contentListener = () => {
-  // @ts-ignore
-  browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  self.chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     setTimeout(() => {
       const tabId = sender?.tab?.id
 
@@ -659,6 +653,7 @@ const contentListener = () => {
     }, 0)
 
     sendResponse()
+    return false
   })
 }
 
@@ -675,7 +670,7 @@ const tabListener = () => {
   /**
    * @see https://stackoverflow.com/a/73836810/10567157
    */
-  chrome.runtime.onMessage.addListener(function (
+  self.chrome.runtime.onMessage.addListener(function (
     request,
     sender,
     sendResponse,
@@ -717,13 +712,11 @@ const tabListener = () => {
       return
     }
 
-    sendResponse({ foo: true })
-
-    if (request.source !== 'meteor-devtools-evolved') return true
+    if (request.source !== 'meteor-devtools-evolved') return false
 
     tabEvent[request.eventType]?.(request)
 
-    return true
+    return false
   })
 }
 

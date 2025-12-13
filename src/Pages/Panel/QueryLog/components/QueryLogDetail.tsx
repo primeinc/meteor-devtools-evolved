@@ -9,6 +9,8 @@ import {
   RadioGroup,
   Radio,
   Callout,
+  Collapse,
+  Icon,
 } from '@blueprintjs/core'
 import { IconNames } from '@blueprintjs/icons'
 import { MinimongoMethodLog } from '@/Stores/Panel/MinimongoStore/types'
@@ -366,7 +368,8 @@ export const QueryLogDetail: FunctionComponent<Props> = observer(
     const [copyFormat, setCopyFormat] = useState<'console' | 'script'>(
       'console',
     )
-    const [copyOptions, setCopyOptions] = useState({
+    const [showCopyOptions, setShowCopyOptions] = useState(false)
+  const [copyOptions, setCopyOptions] = useState({
       includeDDPClient: false,
       includeLoginBoilerplate: false,
       includeDisplayCode: true,
@@ -499,7 +502,7 @@ export const QueryLogDetail: FunctionComponent<Props> = observer(
           {/* Actions */}
           <div className='section'>
             <h3>Actions</h3>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
               <Button
                 small
                 intent='primary'
@@ -517,56 +520,75 @@ export const QueryLogDetail: FunctionComponent<Props> = observer(
             </div>
           </div>
 
-          {/* Copy Options */}
+          {/* Copy Configuration */}
           <div className='section'>
-            <h3>Copy As</h3>
-            <RadioGroup
-              selectedValue={copyFormat}
-              onChange={e =>
-                setCopyFormat(e.currentTarget.value as 'console' | 'script')
-              }
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                cursor: 'pointer',
+                marginBottom: 8,
+              }}
+              onClick={() => setShowCopyOptions(!showCopyOptions)}
             >
-              <Radio label='Console (One-liner)' value='console' />
-              <Radio label='Standalone Script' value='script' />
-            </RadioGroup>
+              <h3 style={{ margin: 0, flex: 1 }}>Export Configuration</h3>
+              <Icon
+                icon={showCopyOptions ? 'chevron-down' : 'chevron-right'}
+                color='#a0aec0'
+              />
+            </div>
 
-            {copyFormat === 'script' && (
-              <div className='copy-options'>
-                <Checkbox
-                  checked={copyOptions.includeDDPClient}
+            <Collapse isOpen={showCopyOptions}>
+              <div style={{ paddingBottom: 12 }}>
+                <RadioGroup
+                  selectedValue={copyFormat}
                   onChange={e =>
-                    setCopyOptions({
-                      ...copyOptions,
-                      includeDDPClient: e.currentTarget.checked,
-                    })
+                    setCopyFormat(e.currentTarget.value as 'console' | 'script')
                   }
-                  label='Include DDP Client Setup'
-                />
-                <Checkbox
-                  checked={copyOptions.includeLoginBoilerplate}
-                  onChange={e =>
-                    setCopyOptions({
-                      ...copyOptions,
-                      includeLoginBoilerplate: e.currentTarget.checked,
-                    })
-                  }
-                  label='Include Login with Token (for authenticated queries)'
-                />
-                <Checkbox
-                  checked={copyOptions.includeDisplayCode}
-                  onChange={e =>
-                    setCopyOptions({
-                      ...copyOptions,
-                      includeDisplayCode: e.currentTarget.checked,
-                    })
-                  }
-                  label='Display Results on Page'
-                />
+                  inline
+                >
+                  <Radio label='Console' value='console' />
+                  <Radio label='Script' value='script' />
+                </RadioGroup>
+
+                {copyFormat === 'script' && (
+                  <div className='copy-options'>
+                    <Checkbox
+                      checked={copyOptions.includeDDPClient}
+                      onChange={e =>
+                        setCopyOptions({
+                          ...copyOptions,
+                          includeDDPClient: e.currentTarget.checked,
+                        })
+                      }
+                      label='Include DDP Client'
+                    />
+                    <Checkbox
+                      checked={copyOptions.includeLoginBoilerplate}
+                      onChange={e =>
+                        setCopyOptions({
+                          ...copyOptions,
+                          includeLoginBoilerplate: e.currentTarget.checked,
+                        })
+                      }
+                      label='Include Login'
+                    />
+                    <Checkbox
+                      checked={copyOptions.includeDisplayCode}
+                      onChange={e =>
+                        setCopyOptions({
+                          ...copyOptions,
+                          includeDisplayCode: e.currentTarget.checked,
+                        })
+                      }
+                      label='Include UI Display'
+                    />
+                  </div>
+                )}
               </div>
-            )}
+            </Collapse>
 
             <div className='copy-preview'>
-              {/* Generate preview as plain text - DO NOT execute */}
               {copyFormat === 'console'
                 ? generateConsoleScript(log, copyOptions.includeDisplayCode)
                 : generateStandaloneScript(log, copyOptions)}

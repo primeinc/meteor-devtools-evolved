@@ -460,6 +460,12 @@ const panelListener = () => {
               typeof URL.createObjectURL === 'function'
             ) {
               const url = URL.createObjectURL(blob)
+              
+              // CRITICAL FIX: Chrome ignores `filename` param for blob: URLs in Service Workers
+              // We must track URL->filename mapping BEFORE calling download()
+              // See commit 80596ea for context
+              downloadUrlToFilename.set(url, filename)
+
               chrome.downloads.download(
                 { url, filename, saveAs: false },
                 id => {
@@ -470,6 +476,7 @@ const panelListener = () => {
                   )
                   // Check for download errors
                   if (chrome.runtime.lastError) {
+                    downloadUrlToFilename.delete(url) // Cleanup on error
                     exportLogger.error(
                       'Download failed:',
                       chrome.runtime.lastError,
@@ -477,6 +484,7 @@ const panelListener = () => {
                     markFailed(payload.id, 'DOWNLOAD_ERROR', port)
                     return
                   }
+                  // Success - map is cleaned up in onDeterminingFilename listener (or eventually by GC if missed)
                   done(id)
                 },
               )

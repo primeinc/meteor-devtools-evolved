@@ -1,4 +1,5 @@
-import React, { FunctionComponent, useState, useRef } from 'react'
+import React, { FunctionComponent, useState, useRef, useEffect } from 'react'
+import { FixedSizeList as List, ListChildComponentProps, areEqual } from 'react-window'
 import { observer } from 'mobx-react-lite'
 import { untracked } from 'mobx'
 import styled from 'styled-components'
@@ -204,16 +205,168 @@ const formatDuration = (ms: number) => {
   return `${(ms / 1000).toFixed(2)}s`
 }
 
+const WaterfallContainerWrapper = styled.div`
+  flex: 1;
+  height: 100%;
+  width: 100%;
+  position: relative;
+`
+
+const Row = observer(
+  ({ data, index, style }: ListChildComponentProps<WaterfallData>) => {
+    const { logs, timeRange, pixelsPerMs, onSelectLog, selectedLog, ddpStore } =
+      data
+    const log = logs[index]
+    const relativeStart = log.timestamp - timeRange.start
+    const barLeft = relativeStart * pixelsPerMs
+    const barWidth = log.runtime * pixelsPerMs
+
+    // Use untracked to prevent MobX reaction loop when accessing DDP store if needed,
+    // but here we want to react to DDP changes if they affect correlation.
+    // However, for performance, we might want to be careful.
+    // The original code used untracked(). We will stick to that to avoid
+    // excessive re-renders from DDP stream, assuming correlations don't change
+    // for past logs often.
+    const correlation = untracked(() =>
+      minimongoCorrelator.getCorrelationForQuery(log),
+    )
+    
+    // We can also access ddpStore to force reactivity if we wanted, 
+    // but the original code avoided it for a reason (infinite loops?).
+    // We will follow the untracked pattern but ensure clean rendering.
+
+    const hasCorrelation = correlation.correlationConfidence !== 'NONE'
+    
+    // We need to get DDP messages for the line.
+    // The original code calculated this upfront.
+    // Here we calculate it per row.
+    const getDDPMessages = () => {
+       // We use untracked here as well to match the pattern
+       const ddpSnapshot = untracked(() => ddpStore.collection)
+       return ddpSnapshot.filter(ddp => {
+          if (!ddp.parsedContent?.collection || !ddp.timestamp) return false
+          return (
+            ddp.parsedContent.collection === log.collectionName &&
+            Math.abs(ddp.timestamp - log.timestamp) < 100
+          )
+        })
+    }
+    const ddpMessages = getDDPMessages()
+
+    return (
+      <WaterfallRow
+        style={style}
+        isSelected={selectedLog === log}
+        onClick={() => onSelectLog(log)}
+      >
+        <div className='info-section'>
+          <span className='time'>{formatTime(log.timestamp)}</span>
+          <span className='collection'>{log.collectionName}</span>
+          <Tag
+            className='method-tag'
+            intent={
+              log.method === 'find'
+                ? 'primary'
+                : log.method === 'insert'
+                ? 'success'
+                : log.method === 'update'
+                ? 'warning'
+                : log.method === 'remove'
+                ? 'danger'
+                : 'none'
+            }
+            minimal
+          >
+            {log.method}
+          </Tag>
+        </div>
+
+        <div className='timeline-section'>
+          {/* DDP correlation line */}
+          {ddpMessages.map((ddp, i) => (
+            <DDPCorrelationLine
+              key={i}
+              left={(ddp.timestamp - timeRange.start) * pixelsPerMs}
+            />
+          ))}
+
+          {/* Operation bar */}
+          <Tooltip
+            content={
+              <div>
+                <div>
+                  <strong>
+                    {log.collectionName}.{log.method}()
+                  </strong>
+                </div>
+                <div>Duration: {formatDuration(log.runtime)}</div>
+                {log.selector && (
+                  <div>Selector: {JSON.stringify(log.selector)}</div>
+                )}
+                {hasCorrelation && (
+                  <div>
+                    DDP Activity: {correlation.addedDocuments} added,
+                    {correlation.changedDocuments} changed,
+                    {correlation.removedDocuments} removed
+                  </div>
+                )}
+              </div>
+            }
+            position='top'
+            // Ensure potential clipping is handled if Blueprint supports it, 
+            // though without portal it might clip. 
+            // Standard Blueprint Tooltip usually portals correctly.
+          >
+            <TimelineBar
+              left={barLeft}
+              width={barWidth}
+              color={getMethodColor(log.method)}
+              hasCorrelation={hasCorrelation}
+            >
+              {formatDuration(log.runtime)}
+            </TimelineBar>
+          </Tooltip>
+        </div>
+      </WaterfallRow>
+    )
+  },
+)
+
+interface WaterfallData {
+  logs: MinimongoMethodLog[]
+  timeRange: { start: number; end: number; duration: number }
+  pixelsPerMs: number
+  onSelectLog: (log: MinimongoMethodLog) => void
+  selectedLog?: MinimongoMethodLog
+  ddpStore: any // Type this properly if possible
+}
+
 export const QueryLogWaterfall: FunctionComponent<Props> = observer(
   ({ logs, onSelectLog, selectedLog }) => {
     const { ddpStore } = usePanelStore()
     const [zoom, setZoom] = useState(1)
-    const [scrollLeft, setScrollLeft] = useState(0)
+    const [size, setSize] = useState({ width: 0, height: 0 })
     const containerRef = useRef<HTMLDivElement>(null)
 
+    useEffect(() => {
+      if (!containerRef.current) return
+      
+      const resizeObserver = new ResizeObserver(entries => {
+        for (const entry of entries) {
+           setSize({
+             width: entry.contentRect.width,
+             height: entry.contentRect.height
+           })
+        }
+      })
+      
+      resizeObserver.observe(containerRef.current)
+      
+      return () => resizeObserver.disconnect()
+    }, [])
+
     // Calculate time range and scale
-    // Direct calculation - MobX observer handles re-render optimization
-    const getTimeRange = () => {
+    const timeRange = React.useMemo(() => {
       if (logs.length === 0) return { start: 0, end: 0, duration: 0 }
 
       const timestamps = logs.map(l => l.timestamp)
@@ -222,51 +375,30 @@ export const QueryLogWaterfall: FunctionComponent<Props> = observer(
       const duration = end - start
 
       return { start, end, duration }
-    }
-    const timeRange = getTimeRange()
+    }, [logs])
 
-    // Calculate pixel scale (pixels per millisecond)
-    // Fixed scale: 1px = 1ms (adjustable with zoom)
-    // This shows true time distribution instead of auto-fitting to viewport
     const pixelsPerMs = zoom
 
     // Generate timeline ticks
-    // Direct calculation - cheap operation, observer handles optimization
-    const tickInterval = timeRange.duration > 1000 ? 100 : 10 // 100ms or 10ms intervals
+    const tickInterval = timeRange.duration > 1000 ? 100 : 10
     const tickCount = Math.ceil(timeRange.duration / tickInterval)
     const ticks = Array.from({ length: tickCount + 1 }, (_, i) => ({
       time: i * tickInterval,
       label: `${i * tickInterval}ms`,
     }))
 
-    // Find correlated DDP messages
-    // Direct calculation - MobX observer handles updates
-    // Use untracked to avoid MobX tracking during correlation lookup
-    const getDDPCorrelations = () => {
-      const ddpSnapshot = untracked(() => ddpStore.collection.slice())
-      const correlations = new Map<number, any[]>()
-
-      logs.forEach(log => {
-        const relatedDDP = ddpSnapshot.filter(ddp => {
-          if (!ddp.parsedContent?.collection || !ddp.timestamp) return false
-          return (
-            ddp.parsedContent.collection === log.collectionName &&
-            Math.abs(ddp.timestamp - log.timestamp) < 100
-          )
-        })
-
-        if (relatedDDP.length > 0) {
-          correlations.set(log.timestamp, relatedDDP)
-        }
-      })
-
-      return correlations
-    }
-    const ddpCorrelations = getDDPCorrelations()
-
     const handleZoomIn = () => setZoom(prev => Math.min(prev * 1.5, 10))
     const handleZoomOut = () => setZoom(prev => Math.max(prev / 1.5, 0.5))
     const handleZoomReset = () => setZoom(1)
+    
+    const itemData: WaterfallData = {
+      logs,
+      timeRange,
+      pixelsPerMs,
+      onSelectLog,
+      selectedLog,
+      ddpStore
+    }
 
     return (
       <WaterfallContainer>
@@ -300,94 +432,19 @@ export const QueryLogWaterfall: FunctionComponent<Props> = observer(
           ))}
         </TimeAxis>
 
-        <WaterfallContent ref={containerRef}>
-          {logs.map((log, index) => {
-            const relativeStart = log.timestamp - timeRange.start
-            const barLeft = relativeStart * pixelsPerMs
-            const barWidth = log.runtime * pixelsPerMs
-            // Use untracked to prevent MobX reaction loop when accessing DDP store
-            const correlation = untracked(() =>
-              minimongoCorrelator.getCorrelationForQuery(log),
-            )
-            const hasCorrelation = correlation.correlationConfidence !== 'NONE'
-            const ddpMessages = ddpCorrelations.get(log.timestamp)
-
-            return (
-              <WaterfallRow
-                key={`${log.timestamp}-${index}`}
-                isSelected={selectedLog === log}
-                onClick={() => onSelectLog(log)}
-              >
-                <div className='info-section'>
-                  <span className='time'>{formatTime(log.timestamp)}</span>
-                  <span className='collection'>{log.collectionName}</span>
-                  <Tag
-                    className='method-tag'
-                    intent={
-                      log.method === 'find'
-                        ? 'primary'
-                        : log.method === 'insert'
-                        ? 'success'
-                        : log.method === 'update'
-                        ? 'warning'
-                        : log.method === 'remove'
-                        ? 'danger'
-                        : 'none'
-                    }
-                    minimal
-                  >
-                    {log.method}
-                  </Tag>
-                </div>
-
-                <div className='timeline-section'>
-                  {/* DDP correlation line */}
-                  {ddpMessages &&
-                    ddpMessages.map((ddp, i) => (
-                      <DDPCorrelationLine
-                        key={i}
-                        left={(ddp.timestamp - timeRange.start) * pixelsPerMs}
-                      />
-                    ))}
-
-                  {/* Operation bar */}
-                  <Tooltip
-                    content={
-                      <div>
-                        <div>
-                          <strong>
-                            {log.collectionName}.{log.method}()
-                          </strong>
-                        </div>
-                        <div>Duration: {formatDuration(log.runtime)}</div>
-                        {log.selector && (
-                          <div>Selector: {JSON.stringify(log.selector)}</div>
-                        )}
-                        {hasCorrelation && (
-                          <div>
-                            DDP Activity: {correlation.addedDocuments} added,
-                            {correlation.changedDocuments} changed,
-                            {correlation.removedDocuments} removed
-                          </div>
-                        )}
-                      </div>
-                    }
-                    position='top'
-                  >
-                    <TimelineBar
-                      left={barLeft}
-                      width={barWidth}
-                      color={getMethodColor(log.method)}
-                      hasCorrelation={hasCorrelation}
-                    >
-                      {formatDuration(log.runtime)}
-                    </TimelineBar>
-                  </Tooltip>
-                </div>
-              </WaterfallRow>
-            )
-          })}
-        </WaterfallContent>
+        <WaterfallContainerWrapper ref={containerRef}>
+          {size.height > 0 && (
+             <List
+                height={size.height}
+                width={size.width}
+                itemCount={logs.length}
+                itemSize={29} // 28px height + 1px border
+                itemData={itemData}
+             >
+                {Row}
+             </List>
+          )}
+        </WaterfallContainerWrapper>
       </WaterfallContainer>
     )
   },
